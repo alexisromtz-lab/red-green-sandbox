@@ -240,6 +240,42 @@ recibo sí, por `fase_alcanzada`: `SETUP` = la regresión ya fallaba en el árbo
 control de no-regresión no vale) y `GREEN` = el parche rompió la regresión. Son dos
 filas, no una.
 
+### El banco de conducta (`tests/`)
+
+`--banco` vive dentro del instrumento: lo ejecuta el mismo módulo que certifica. Eso
+deja una pregunta abierta que sólo se responde desde fuera: **¿el motor se comporta
+como dice cuando lo llaman otros?** `tests/test_sandbox.py` lo invoca por su entrada
+pública (`sandbox.main`) y mide las dos direcciones:
+
+| test | mide | espera |
+|---|---|---|
+| `test_piloto_certifica_las_tres_recetas` | `--piloto` | `RC 0` · `3/3 CERTIFICADO_RED_GREEN` |
+| `test_receta_externa_valida_certifica` | receta válida por `--receta` | `RC 0` · `CERTIFICADO_RED_GREEN` |
+| `test_parche_que_no_casa_aborta` | parche con `buscar` ausente | `RC != 0` · `ABORTA_PARCHE_NO_APLICA` |
+| `test_reproductor_que_pasa_en_red_aborta` | reproductor que pasa en RED | `RC != 0` · `ABORTA_REPRODUCTOR_FALSO` |
+| `test_receta_ilegible_aborta_con_rc_2` | JSON roto | `RC 2` · `ABORTA_RECETA_INVALIDA` |
+| `test_banco_cobertura_completa` | `--banco` | `RC 0` · `9/9 causas` · `17/17 ramas` |
+| `test_banco_no_es_tautologia` | falsificador del banco | torcer una `espera` ⇒ `RC != 0` |
+
+Los tests **no reimplementan** el pipeline: si lo hicieran, medirían el test y no el
+instrumento. Y el último no mide el motor, mide el **banco**: con una expectativa
+torcida el banco tiene que caer, o no está midiendo nada.
+
+**El control negativo del banco de conducta** (medido `2026-10-20T23:36Z`): se mutó una
+copia del fuente —`if n != s["ocurrencias"]` ⇒ `if False` y `if pre["rc"] == 0` ⇒
+`if False`— y la suite pasó de `7 passed` a **`4 failed, 3 passed`**. Una suite que
+sigue verde con el instrumento roto no es un test, es un adorno.
+
+CI: el aparato declarado en `.github/ci-apparatus` es compuesto, en una línea (el
+runner lee **sólo la primera**):
+
+```
+python .github/verify_manifest.py && python -m pytest -q tests/
+```
+
+Manifiesto primero (¿parsea?), conducta después (¿se comporta?). Medido local:
+`MANIFIESTO_SANO` + `7 passed` ⇒ `RC 0`.
+
 ## Cómo citar
 
 Versión `1.3.0` depositada en Zenodo el `2026-10-20`: DOI de **versión**
