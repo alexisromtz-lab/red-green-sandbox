@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "redgreen-sandbox"
+version = "1.0.0"
+description = "Certifica que un parche resuelve un issue: RC != 0 -> RC == 0 sin mutar el examen."
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+authors = [{ name = "Platino Labs" }]
+keywords = ["testing", "red-green", "sandbox", "ci", "patch-verification"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+  "Topic :: Software Development :: Testing",
+]
+dependencies = []
+
+[project.scripts]
+redgreen-sandbox = "sandbox:main"
+
+[tool.setuptools]
+py-modules = ["sandbox"]
