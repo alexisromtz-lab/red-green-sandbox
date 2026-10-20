@@ -113,6 +113,41 @@ explícita). `buscar` tiene que casar **exactamente** `ocurrencias` veces.
 }
 ```
 
+### Fixture binario por referencia de blob
+
+`fixture` es un mapa de **texto**: no sirve para los bytes de un PNG o un `.npy`. Para eso
+hay una séptima clave, **opcional**: `fixture_binario`, con forma
+`{ruta -> {blob, bytes}}`. El contenido **no viaja en el JSON**: viaja el OID de Git, y con
+`--repo DIR` el motor lo materializa desde el object DB.
+
+```bash
+python3 sandbox.py --receta receta.json --repo /ruta/al/repo   # materializa los binarios
+```
+
+Reglas, leídas del motor (`sandbox.py:452` `_materializar_binarios`, `sandbox.py:668`
+validación de la clave):
+
+| regla | consecuencia |
+|---|---|
+| `fixture_binario` es un objeto `ruta -> {blob, bytes}` | otra forma ⇒ `ABORTA_RECETA_INVALIDA` |
+| cada entrada trae un OID de blob | sin OID ⇒ `ABORTA_RECETA_INVALIDA` |
+| la ruta no repite una del `fixture` de texto | repetida ⇒ `ABORTA_RECETA_INVALIDA` |
+| el OID se verifica **antes** de escribir, y `bytes` si viene | no cuadra ⇒ el archivo **no** se escribe |
+| tras escribir se relee y se compara | distinto ⇒ se borra y cuenta como faltante |
+
+Fail-closed en las dos direcciones: sin `--repo` no se supone nada — se declara
+`motivo=SIN_REPO_LOCAL` y los archivos quedan **faltantes**, no resueltos; y si el RED no
+muestra el síntoma pero su salida **nombra** un binario declarado que no se materializó, la
+causa es `ABORTA_FIXTURE_BINARIO_FALTANTE`, no un `ABORTA` genérico: el fixture estaba
+incompleto y lo dice.
+
+Las **seis claves obligatorias no cambian**: `fixture_binario` es la séptima y es opcional,
+así que toda receta anterior corre igual. La clave entró con `VERSION` = `1.1.0`
+(`sandbox.py` 971 líneas, blob `0da5130b`); el motor va hoy en `1.2.0` (1 057 líneas, blob
+`5858e76f`), medido el `2026-10-20T15:42Z`.
+
+<!-- HUELLA-README-FIXTURE-BLOB-20261020 -->
+
 ### Códigos de salida de la ranura
 
 | RC | significado |
@@ -125,7 +160,8 @@ explícita). `buscar` tiene que casar **exactamente** `ocurrencias` veces.
 
 ### Controles medidos
 
-Cinco corridas el `2026-10-20T05:04Z` con `python3 3.14.7`:
+Seis corridas con `python3 3.14.7`: cinco el `2026-10-20T05:04Z` y una el
+`2026-10-20T15:42Z` (la última es un caso del banco, no una receta externa):
 
 | control | entrada | salida |
 |---|---|---|
@@ -134,11 +170,12 @@ Cinco corridas el `2026-10-20T05:04Z` con `python3 3.14.7`:
 | B2 | la misma, con la regresión corregida | `RC 0` · `RED rc=1 (AssertionError) PATCH +1/-1 GREEN rc=0 CERTIFICADO_RED_GREEN` |
 | C | `fixture` sin `reproductor.py` | `RC 2` · `el fixture no trae el examen: ['reproductor.py']` |
 | E | `sintoma` es `TypeError` en un caso que falla con `AssertionError` | `RC 1` · `FASE=RED` · `ABORTA_SINTOMA_NO_OBSERVADO` |
+| F | `fixture_binario` declarado y corrido **sin** `--repo` | `RC 1` · `FASE=RED` · `ABORTA_FIXTURE_BINARIO_FALTANTE` · `motivo=SIN_REPO_LOCAL` |
 
 B1 no es un fallo del motor: la **regresión se corre antes del parche**, en SETUP. Una
 regresión que depende del bug que se está arreglando aborta la receta entera.
 
-Teardown medido tras las cinco corridas: `find /tmp -maxdepth 1 -name
+Teardown medido tras las seis corridas: `find /tmp -maxdepth 1 -name
 'sandbox_corpus_*'` devuelve **0** entradas.
 
 ## Reporte para pegar en un PR
