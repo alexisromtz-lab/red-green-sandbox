@@ -24,9 +24,10 @@ un test reescrito para pasar.
 ## Uso
 
 ```bash
-python3 sandbox.py            # piloto: 3 recetas sintéticas
-python3 sandbox.py --banco    # banco must-fail: 5 casos que DEBEN abortar
-python3 sandbox.py --json     # reporte máquina-legible
+python3 sandbox.py                     # piloto por defecto: 3 recetas sintéticas
+python3 sandbox.py --banco             # banco must-fail: 5 casos que DEBEN abortar
+python3 sandbox.py --json              # reporte máquina-legible
+python3 sandbox.py --receta PATH.json  # receta externa, de fuera del repositorio
 ```
 
 Salida del piloto (medida, `python3 3.14.7`):
@@ -47,6 +48,98 @@ Banco must-fail: **5/5 por causa** (no sólo por código de salida):
 | `PARCHE_QUE_NO_CASA` | PATCH | `ABORTA_PARCHE_NO_APLICA` |
 | `EXAMEN_DENTRO_DEL_PARCHE` | PATCH | `ABORTA_EXAMEN_MOVIDO` |
 | `VERDE_QUE_NO_LLEGA` | GREEN | `ABORTA_VERDE_FALLIDO` |
+
+## Receta externa — `--receta PATH.json`
+
+El motor **no guarda casos ajenos: los recibe**. Un issue externo no se codifica dentro
+de `sandbox.py`; se envuelve en JSON y se pasa por la ranura. La receta externa se valida
+contra **el mismo contrato** que las internas.
+
+```bash
+python3 sandbox.py --receta /ruta/a/receta.json          # veredicto legible
+python3 sandbox.py --receta /ruta/a/receta.json --json   # veredicto máquina-legible
+```
+
+`--receta` corre **sólo** la receta externa: no arrastra el piloto ni el banco
+(`hacer_piloto = args.piloto or (not args.banco and not args.receta)`, `sandbox.py:740`).
+Medido: la salida de una corrida con `--receta` tiene **0** líneas `[PILOTO]` y **1**
+línea `[RECETA]`. Con `--json`, el reporte trae una clave `receta` con `caso`,
+`fase_alcanzada` y `veredicto`.
+
+### El contrato: seis claves, todas obligatorias
+
+`CLAVES_RECETA` (`sandbox.py:58`) son las mismas seis que usan las recetas del
+repositorio. Ninguna se suple con un default silencioso: si falta una, la receta **no
+corre**.
+
+| clave | tipo exigido | qué exige el motor |
+|---|---|---|
+| `nombre` | cadena no vacía | identificador del fix |
+| `familia` | cadena no vacía | categoría del fallo |
+| `sol_referencia` | cadena no vacía | familia del corpus que el fixture ejercita |
+| `sintoma` | cadena no vacía | **subcadena** que debe aparecer en la salida del reproductor |
+| `fixture` | objeto no vacío de cadenas | archivos relativos a escribir en el sandbox; **debe** traer `reproductor.py` y `regresion.py` |
+| `parche` | lista no vacía | sustituciones exactas |
+
+`sintoma` es una **cadena**, no un objeto: el motor busca esa subcadena en la salida
+combinada del reproductor. `fixture` admite rutas con subdirectorio (`calc/texto.py`);
+las claves del examen son `EXAMEN = ("reproductor.py", "regresion.py")`
+(`sandbox.py:54`) y sin ellas la receta se rechaza.
+
+Cada elemento de `parche` exige las cuatro claves de `CLAVES_PARCHE`
+(`sandbox.py:66`): `archivo`, `buscar` y `reemplazar` cadenas no vacías, y
+`ocurrencias` un **entero mayor o igual a 1** (un booleano se rechaza de forma
+explícita). `buscar` tiene que casar **exactamente** `ocurrencias` veces.
+
+```json
+{
+  "nombre": "CONTROL_README_RECETA_EXTERNA",
+  "familia": "control/documentacion",
+  "sol_referencia": "familia: control de la ranura externa",
+  "sintoma": "AssertionError",
+  "fixture": {
+    "calc.py": "def doble(x):\n    return x + 2\n\n\ndef ident(x):\n    return x\n",
+    "reproductor.py": "from calc import doble\nassert doble(3) == 6\n",
+    "regresion.py": "from calc import ident\nassert ident(5) == 5\n"
+  },
+  "parche": [
+    {
+      "archivo": "calc.py",
+      "buscar": "def doble(x):\n    return x + 2\n",
+      "reemplazar": "def doble(x):\n    return x * 2\n",
+      "ocurrencias": 1
+    }
+  ]
+}
+```
+
+### Códigos de salida de la ranura
+
+| RC | significado |
+|---|---|
+| `0` | `CERTIFICADO_RED_GREEN`: RED falló con el síntoma, PATCH aplicó, GREEN pasó |
+| `1` | el motor abortó: la receta corrió y un invariante la rechazó |
+| `2` | `ABORTA_RECETA_INVALIDA`: la receta no se pudo cargar ni validar, nada corrió |
+
+`RC 2` domina: se aplica sólo si el acumulado era menor (`if rc < 2`).
+
+### Controles medidos
+
+Cinco corridas el `2026-10-20T05:04Z` con `python3 3.14.7`:
+
+| control | entrada | salida |
+|---|---|---|
+| A | receta con cinco claves (sin `sol_referencia`) | `RC 2` · `claves ausentes: ['sol_referencia']` |
+| B1 | seis claves, `regresion.py` que falla **antes** del parche | `RC 1` · `FASE=SETUP` · `ABORTA_REGRESION_ROTA` |
+| B2 | la misma, con la regresión corregida | `RC 0` · `RED rc=1 (AssertionError) PATCH +1/-1 GREEN rc=0 CERTIFICADO_RED_GREEN` |
+| C | `fixture` sin `reproductor.py` | `RC 2` · `el fixture no trae el examen: ['reproductor.py']` |
+| E | `sintoma` es `TypeError` en un caso que falla con `AssertionError` | `RC 1` · `FASE=RED` · `ABORTA_SINTOMA_NO_OBSERVADO` |
+
+B1 no es un fallo del motor: la **regresión se corre antes del parche**, en SETUP. Una
+regresión que depende del bug que se está arreglando aborta la receta entera.
+
+Teardown medido tras las cinco corridas: `find /tmp -maxdepth 1 -name
+'sandbox_corpus_*'` devuelve **0** entradas.
 
 ## Reporte para pegar en un PR
 
@@ -81,3 +174,5 @@ Banco must-fail: **5/5 por causa** (no sólo por código de salida):
 ## Licencia
 
 MIT. Ver `LICENSE`.
+
+<!-- HUELLA-README-RECETA-EXTERNA-20261020 -->
