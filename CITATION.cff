@@ -16,6 +16,14 @@ authors:
   - name: "Platino Labs"
 version: 1.3.0
 date-released: 2026-10-20
+# DOI acunado por el hook de Zenodo al crear el Release v1.3.0 (2026-10-20T17:52:17Z),
+# leido desde https://zenodo.org/api/records/23507563 el mismo dia: no es un supuesto.
+# HUELLA-CITATION-RGS-DOI-20261020
+doi: "10.5281/zenodo.23507563"
+identifiers:
+  - type: doi
+    value: "10.5281/zenodo.23507562"
+    description: "Concepto (todas las versiones); la version de este archivo es 23507563"
 repository-code: "https://github.com/alexisromtz-lab/red-green-sandbox"
 url: "https://github.com/alexisromtz-lab/red-green-sandbox"
 license: MIT

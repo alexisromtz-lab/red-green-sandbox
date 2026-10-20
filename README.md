@@ -240,6 +240,28 @@ recibo sí, por `fase_alcanzada`: `SETUP` = la regresión ya fallaba en el árbo
 control de no-regresión no vale) y `GREEN` = el parche rompió la regresión. Son dos
 filas, no una.
 
+## Cómo citar
+
+Versión `1.3.0` depositada en Zenodo el `2026-10-20`: DOI de **versión**
+`10.5281/zenodo.23507563`, DOI de **concepto** (todas las versiones)
+`10.5281/zenodo.23507562`. Los metadatos de la cita viven en `CITATION.cff` (blob
+`ae8fd1d6` en el momento de acuñar). Sin ese archivo Zenodo habría archivado el release
+con campos vacíos: el tag se creó **después** de los metadatos, no antes.
+
+```bibtex
+@software{roman_martinez_red_green_sandbox_2026,
+  author  = {Roman Martinez, Jose Alexis and {Platino Labs}},
+  title   = {Red-Green Sandbox},
+  year    = 2026,
+  month   = oct,
+  version = {1.3.0},
+  doi     = {10.5281/zenodo.23507563},
+  url     = {https://doi.org/10.5281/zenodo.23507563}
+}
+```
+
+<!-- HUELLA-README-DOI-V130-20261020 -->
+
 ## Alcance
 
 - El sandbox es un directorio temporal. El laboratorio **no** toca el árbol de trabajo.
