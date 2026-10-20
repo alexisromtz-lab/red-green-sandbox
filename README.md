@@ -159,6 +159,11 @@ posterior al commit citado, esta línea no miente por omisión — **pide re-med
 el motor avance de versión, la línea se **re-mide** en un commit nuevo con su hora; el
 número viejo no se reescribe.
 
+Re-medición `v1.3.0` (`HUELLA-README-VERSION-FECHADA-V130-20261020`): el motor va en
+`1.3.0`, `sandbox.py` **1 475 líneas / 52 990 B / blob `3fed2ea4`**, medido en el commit
+`4e4084f` a `2026-10-20T16:24:36Z`. Ese mismo binario mide `--banco` 9/9 causa · 19/19
+rama · 17/17 ramas del validador, `--piloto` 3/3, ambos `RC=0`.
+
 <!-- HUELLA-README-FIXTURE-BLOB-20261020 -->
 <!-- HUELLA-README-VERSION-FECHADA-20261020 -->
 
