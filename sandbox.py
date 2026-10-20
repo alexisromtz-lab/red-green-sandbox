@@ -33,6 +33,16 @@ PATH.json` ejecuta una receta de FUERA del repositorio, validada contra el mismo
 contrato que las recetas internas. El motor no guarda casos ajenos: los recibe.
 Un caso externo no se codifica dentro de este archivo; se envuelve en JSON.
 
+Fixture binario (HUELLA-FIXTURE-BINARIO-SANDBOX-20261020): `fixture` es texto,
+pero un fixture real trae bytes (un PNG, un .npy). Clave OPCIONAL
+`fixture_binario` = {ruta -> {blob, bytes}}: el contenido NO viaja en el JSON,
+viaja el OID de Git. Con `--repo DIR` se materializa con `git cat-file -p` en
+modo `wb` verificando el OID ANTES de escribir; sin `--repo` no se inventa
+nada: se declara `SIN_REPO_LOCAL` y la receta corre como hasta hoy. Si el RED
+no muestra el sintoma y nombra un binario declarado que no se materializo, la
+causa es `ABORTA_FIXTURE_BINARIO_FALTANTE`, no un ABORTA generico: el fixture
+estaba incompleto y lo dice.
+
 Nota de fidelidad: los fixtures son SINTETICOS. `sol_referencia` nombra la
 familia del corpus que el laboratorio ejercita; NO se reclama que el fixture
 sea el objeto de esa fila. La fila es la familia, el fixture es la instancia.
@@ -48,7 +58,7 @@ import tempfile
 import time
 from difflib import unified_diff
 
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 PREFIJO_SANDBOX = "sandbox_corpus_"
 TIMEOUT_S = 60
 EXAMEN = ("reproductor.py", "regresion.py")
@@ -278,6 +288,31 @@ RECETAS_BANCO = [
         ],
     },
     {
+        # Un fixture incompleto no se confunde con un sintoma ausente: el
+        # reproductor nombra el binario declarado y el motor lo dice con causa
+        # propia (HUELLA-FIXTURE-BINARIO-SANDBOX-20261020). Se declara 0*40 a
+        # proposito: sin `--repo` no hay fuente, y el OID tampoco existe.
+        "nombre": "FIXTURE_BINARIO_FALTANTE",
+        "familia": "banco/invariante-fixture-binario",
+        "sol_referencia": "CONTROL NEGATIVO DEL LABORATORIO",
+        "sintoma": "InterpreterError",
+        "espera": "ABORTA_FIXTURE_BINARIO_FALTANTE",
+        "fixture": _fixture(
+            "calc/csv_min.py",
+            R1_PRE,
+            "open('tests/data/falta.png', 'rb').read()\n",
+        ),
+        "fixture_binario": {"tests/data/falta.png": {"blob": "0" * 40, "bytes": 8}},
+        "parche": [
+            {
+                "archivo": "calc/csv_min.py",
+                "buscar": "def campos(linea):\n",
+                "reemplazar": "def campos(linea):  # parche cosmetico\n",
+                "ocurrencias": 1,
+            }
+        ],
+    },
+    {
         "nombre": "EXAMEN_DENTRO_DEL_PARCHE",
         "familia": "banco/invariante-examen-intocable",
         "sol_referencia": "CONTROL NEGATIVO DEL LABORATORIO",
@@ -326,6 +361,64 @@ def _escribir(raiz, archivos):
             os.makedirs(carpeta, exist_ok=True)
         with open(p, "w", encoding="utf-8", newline="\n") as fh:
             fh.write(archivos[rel])
+
+
+def _materializar_binarios(raiz, manifiesto, repo_dir):
+    """`fixture_binario` -> archivos en BYTES, desde el object DB de Git.
+
+    HUELLA-FIXTURE-BINARIO-SANDBOX-20261020
+    Git es agnostico al tipo de contenido: un blob es bytes crudos. Por eso la
+    escritura es `wb` y el contenido sale de `git cat-file -p`, no del worktree.
+    Orden fail-closed: se verifica el OID contra el declarado (y `bytes` si
+    viene) ANTES de escribir; un manifiesto que no cuadra no deja archivo.
+    Sin `--repo` no se supone nada: se declara SIN_REPO_LOCAL y los archivos
+    quedan como faltantes, no como resueltos.
+    """
+    items = []
+    for rel in sorted(manifiesto or {}):
+        v = manifiesto[rel]
+        if isinstance(v, str):
+            items.append((rel, v, None))
+        else:
+            items.append((rel, (v or {}).get("blob"), (v or {}).get("bytes")))
+    inf = {"declarados": len(items), "materializados": 0, "faltantes": [],
+           "motivo": None, "repo": repo_dir}
+    if not items:
+        return inf
+    if not repo_dir or not os.path.isdir(os.path.join(repo_dir, ".git")):
+        inf["motivo"] = "SIN_REPO_LOCAL"
+        inf["faltantes"] = [rel for rel, _, _ in items]
+        return inf
+    for rel, blob, esperado in items:
+        if not blob:
+            inf["faltantes"].append(rel)
+            continue
+        try:
+            datos = subprocess.check_output(
+                ["git", "--no-optional-locks", "-C", repo_dir, "cat-file", "-p", blob]
+            )
+        except (subprocess.CalledProcessError, OSError):
+            inf["faltantes"].append(rel)
+            continue
+        if _blob_git(datos) != blob:
+            inf["faltantes"].append(rel)
+            continue
+        if esperado is not None and len(datos) != esperado:
+            inf["faltantes"].append(rel)
+            continue
+        p = os.path.join(raiz, rel)
+        carpeta = os.path.dirname(p)
+        if carpeta:
+            os.makedirs(carpeta, exist_ok=True)
+        with open(p, "wb") as fh:
+            fh.write(datos)
+        with open(p, "rb") as fh:
+            if fh.read() != datos:
+                os.remove(p)
+                inf["faltantes"].append(rel)
+                continue
+        inf["materializados"] += 1
+    return inf
 
 
 def _snapshot(raiz):
@@ -484,6 +577,30 @@ def _cargar_receta(ruta):
             "ABORTA_RECETA_INVALIDA", "el fixture no trae el examen: %s" % faltan_examen
         )
 
+    # Clave OPCIONAL: el fixture binario viaja como referencia (ruta -> blob),
+    # nunca como contenido. Se valida la forma y que no colisione con el texto.
+    binario = receta.get("fixture_binario") or {}
+    if binario:
+        if not isinstance(binario, dict):
+            raise Aborta(
+                "ABORTA_RECETA_INVALIDA",
+                "fixture_binario debe ser un objeto JSON ruta -> {blob, bytes}",
+            )
+        for rel in sorted(binario):
+            v = binario[rel]
+            oid = v if isinstance(v, str) else (v or {}).get("blob")
+            if not isinstance(oid, str) or not oid.strip():
+                raise Aborta(
+                    "ABORTA_RECETA_INVALIDA",
+                    "fixture_binario[%r] debe traer un blob OID" % rel,
+                )
+            if rel in fixture:
+                raise Aborta(
+                    "ABORTA_RECETA_INVALIDA",
+                    "fixture_binario[%r] repite una ruta del fixture de texto" % rel,
+                )
+    receta["fixture_binario"] = binario
+
     parche = receta["parche"]
     if not isinstance(parche, list) or not parche:
         raise Aborta("ABORTA_RECETA_INVALIDA", "parche debe ser una lista no vacia")
@@ -525,13 +642,15 @@ def _cargar_receta(ruta):
 # --------------------------------------------------------------------------
 
 
-def _correr_caso(receta):
+def _correr_caso(receta, repo_dir=None):
     res = {
         "caso": receta["nombre"],
         "familia": receta["familia"],
         "sol_referencia": receta["sol_referencia"],
         "laboratorio": "v%s" % VERSION,
         "sandbox": None,
+        "repo_binarios": repo_dir,
+        "binarios": None,
         "fase_alcanzada": "SETUP",
         "hash_parche": _hash_parche(receta["parche"]),
         "hash_parche_sha16": _hash_parche(receta["parche"])[:16],
@@ -564,6 +683,10 @@ def _correr_caso(receta):
 
             # ---------------- Fase 0: setup ----------------
             _escribir(raiz, receta["fixture"])
+            # Los binarios van DESPUES del texto y ANTES del snapshot: la
+            # escritura es `wb` y no puede pasar por el mapa de cadenas.
+            bin_ = _materializar_binarios(raiz, receta.get("fixture_binario"), repo_dir)
+            res["binarios"] = bin_
             snap_pre = _snapshot(raiz)
             res["fase_alcanzada"] = "SETUP"
 
@@ -590,6 +713,27 @@ def _correr_caso(receta):
                     "no hay bug que reparar o el test no captura el problema",
                 )
             if not res["sintoma_pre_observado"]:
+                # Un fixture incompleto no se confunde con un sintoma ausente:
+                # si la salida nombra un binario DECLARADO que no se pudo
+                # materializar, la causa lo dice con nombre y motivo.
+                faltan_bin = [
+                    rel
+                    for rel in (bin_.get("faltantes") or [])
+                    if os.path.basename(rel) in combinado
+                ]
+                if faltan_bin:
+                    raise Aborta(
+                        "ABORTA_FIXTURE_BINARIO_FALTANTE",
+                        "rc=%d sin el sintoma %r; la salida nombra binarios "
+                        "declarados sin materializar: %s (motivo=%s, repo=%s)"
+                        % (
+                            pre["rc"],
+                            receta["sintoma"],
+                            faltan_bin,
+                            bin_.get("motivo"),
+                            repo_dir,
+                        ),
+                    )
                 raise Aborta(
                     "ABORTA_SINTOMA_NO_OBSERVADO",
                     "rc=%d pero el sintoma %r no aparece en la salida"
@@ -695,12 +839,20 @@ def _linea_banco(r, espera):
 
 
 def _linea_receta(r, ruta):
+    marca = ""
+    b = r.get("binarios") or {}
+    if b.get("declarados"):
+        marca = "  bin=%d/%d%s" % (
+            b.get("materializados", 0),
+            b.get("declarados", 0),
+            "" if not b.get("faltantes") else " faltan=%s" % ",".join(b["faltantes"]),
+        )
     if r["veredicto"] == "CERTIFICADO_RED_GREEN":
         mas = sum(v["mas"] for v in r["numstat"].values())
         menos = sum(v["menos"] for v in r["numstat"].values())
         return (
             "[RECETA] %-34s RED rc=%s (%s)  PATCH +%d/-%d  "
-            "GREEN rc=%s  %s  ruta=%s"
+            "GREEN rc=%s  %s%s  ruta=%s"
             % (
                 r["caso"],
                 r["reproductor_rc_pre"],
@@ -709,14 +861,16 @@ def _linea_receta(r, ruta):
                 menos,
                 r["reproductor_rc_post"],
                 r["veredicto"],
+                marca,
                 ruta,
             )
         )
-    return "[RECETA] %-34s FASE=%s  CAUSA=%s  detalle=%s  ruta=%s" % (
+    return "[RECETA] %-34s FASE=%s  CAUSA=%s  detalle=%s%s  ruta=%s" % (
         r["caso"],
         r["fase_alcanzada"],
         r["causa"],
         r["detalle"],
+        marca,
         ruta,
     )
 
@@ -735,6 +889,12 @@ def main(argv=None):
         help="corre una receta externa en JSON (contrato: %s)"
         % ", ".join(CLAVES_RECETA),
     )
+    ap.add_argument(
+        "--repo",
+        metavar="DIR",
+        default=None,
+        help="arbol git de donde materializar `fixture_binario` (git cat-file -p, modo wb)",
+    )
     args = ap.parse_args(argv)
 
     hacer_piloto = args.piloto or (not args.banco and not args.receta)
@@ -747,7 +907,7 @@ def main(argv=None):
     rc = 0
 
     if hacer_piloto:
-        resultados = [_correr_caso(r) for r in RECETAS_PILOTO]
+        resultados = [_correr_caso(r, args.repo) for r in RECETAS_PILOTO]
         certificados = sum(1 for r in resultados if r["veredicto"] == "CERTIFICADO_RED_GREEN")
         for r in resultados:
             print(_linea_piloto(r))
@@ -763,7 +923,7 @@ def main(argv=None):
         filas = []
         correctas = 0
         for receta in RECETAS_BANCO:
-            r = _correr_caso(receta)
+            r = _correr_caso(receta, args.repo)
             filas.append(r)
             if r["causa"] == receta["espera"]:
                 correctas += 1
@@ -793,7 +953,7 @@ def main(argv=None):
             if rc < 2:
                 rc = 2
         if receta_externa is not None:
-            r = _correr_caso(receta_externa)
+            r = _correr_caso(receta_externa, args.repo)
             print(_linea_receta(r, args.receta))
             salida["receta"] = r
             if r["veredicto"] != "CERTIFICADO_RED_GREEN" and rc == 0:
