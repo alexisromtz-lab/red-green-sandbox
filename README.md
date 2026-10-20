@@ -143,10 +143,16 @@ incompleto y lo dice.
 
 Las **seis claves obligatorias no cambian**: `fixture_binario` es la séptima y es opcional,
 así que toda receta anterior corre igual. La clave entró con `VERSION` = `1.1.0`
-(`sandbox.py` 971 líneas, blob `0da5130b`); el motor va hoy en `1.2.0` (1 057 líneas, blob
-`5858e76f`), medido el `2026-10-20T15:42Z`.
+(`sandbox.py` 971 líneas, blob `0da5130b`); el motor va en `1.2.0` (1 057 líneas, blob
+`5858e76f`), **medido en el commit `ce128fb` a `2026-10-20T15:52:31Z`**.
+
+Las dos cifras son **mediciones con fecha**, no una afirmación de presente: si `HEAD` es
+posterior al commit citado, esta línea no miente por omisión — **pide re-medición**. Cuando
+el motor avance de versión, la línea se **re-mide** en un commit nuevo con su hora; el
+número viejo no se reescribe.
 
 <!-- HUELLA-README-FIXTURE-BLOB-20261020 -->
+<!-- HUELLA-README-VERSION-FECHADA-20261020 -->
 
 ### Códigos de salida de la ranura
 
