@@ -55,22 +55,43 @@ parche. `causa == espera` no las distingue; el recibo si, por `fase_alcanzada`
 (SETUP = la regresion ya fallaba en base, el control no vale; GREEN = el parche
 rompio la regresion). Se declaran como dos filas, no como una.
 
+Ranura externa en el banco (HUELLA-BANCO-RANURA-EXTERNA-20261020): las causas del
+validador de `--receta` NO son alcanzables por `_correr_caso`, asi que se ejercen
+invocando el otro punto de entrada como lo haria un usuario. `RECETAS_BANCO_RANURA`
+declara una fila por rama de `_cargar_receta`; cada fila exige `causa`, `detalle` y
+`RC` porque **el RC es uniforme (2) y no discrimina nada**: la unica evidencia de que
+se cayo en LA rama esperada es el texto del detalle.
+
+Cobertura viva: `_causas_del_motor` lee por AST los literales de `Aborta(...)` del
+propio fuente, y el banco FALLA si alguna causa no tiene fila. Una causa nueva en el
+codigo sin fila en el banco pone el banco en rojo: no se declara cobertura, se mide.
+
+Cobertura por RAMA (HUELLA-BANCO-RANURA-RAMAS-20261020): en la ranura externa las 19
+filas comparten una sola causa, asi que "la causa tiene fila" se cumple con UNA fila y
+no prueba nada: es el mismo defecto que un total correcto con la clasificacion rota.
+La unidad que se mide es la RAMA, o sea la plantilla del `detalle`. `_ramas_del_validador`
+lee por AST los 17 sitios `Aborta` de `_cargar_receta` y atribuye cada recibo real a su
+rama por la plantilla mas especifica que lo explica; una rama sin fila deja el banco en
+rojo aunque la causa este cubierta.
+
 Nota de fidelidad: los fixtures son SINTETICOS. `sol_referencia` nombra la
 familia del corpus que el laboratorio ejercita; NO se reclama que el fixture
 sea el objeto de esa fila. La fila es la familia, el fixture es la instancia.
 """
 
 import argparse
+import ast
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
 import time
 from difflib import unified_diff
 
-VERSION = "1.2.0"
+VERSION = "1.3.0"
 PREFIJO_SANDBOX = "sandbox_corpus_"
 TIMEOUT_S = 60
 EXAMEN = ("reproductor.py", "regresion.py")
@@ -413,6 +434,146 @@ RECETAS_BANCO = [
                 "ocurrencias": 1,
             },
         ],
+    },
+]
+
+
+# Banco de la RANURA EXTERNA (HUELLA-BANCO-RANURA-EXTERNA-20261020): una fila por
+# rama de `_cargar_receta`. No entran en RECETAS_BANCO porque esas ramas no se
+# alcanzan por `_correr_caso`: se alcanzan invocando `--receta`, como un usuario.
+# Cada fila declara el PREFIJO del detalle; sin el, 18 filas serian indistinguibles
+# (todas: causa igual, rc igual).
+
+
+def _parche_ranura(**cambios):
+    s = {
+        "archivo": "calc/x.py",
+        "buscar": "X = 1\n",
+        "reemplazar": "X = 2\n",
+        "ocurrencias": 1,
+    }
+    s.update(cambios)
+    return [s]
+
+
+RECETAS_BANCO_RANURA = [
+    {
+        "nombre": "RANURA_RUTA_AUSENTE",
+        "rama": "ruta no es un archivo",
+        "detalle_espera": "ruta ausente",
+        "ruta_inexistente": True,
+    },
+    {
+        "nombre": "RANURA_JSON_ILEGIBLE",
+        "rama": "JSON malformado",
+        "detalle_espera": "JSON ilegible",
+        "crudo": "{no es json",
+    },
+    {
+        "nombre": "RANURA_NO_OBJETO",
+        "rama": "raiz no es objeto",
+        "detalle_espera": "no es un objeto JSON",
+        "receta": [1, 2, 3],
+    },
+    {
+        "nombre": "RANURA_CLAVES_AUSENTES",
+        "rama": "faltan claves del contrato",
+        "detalle_espera": "claves ausentes",
+        "quitar": ["sintoma", "parche"],
+    },
+    {
+        "nombre": "RANURA_NOMBRE_VACIO",
+        "rama": "nombre en blanco",
+        "detalle_espera": "nombre debe ser una cadena no vacia",
+        "cambios": {"nombre": "   "},
+    },
+    {
+        "nombre": "RANURA_FAMILIA_NO_TEXTO",
+        "rama": "familia no es cadena",
+        "detalle_espera": "familia debe ser una cadena no vacia",
+        "cambios": {"familia": 7},
+    },
+    {
+        "nombre": "RANURA_FIXTURE_VACIO",
+        "rama": "fixture vacio",
+        "detalle_espera": "fixture debe ser un objeto JSON no vacio",
+        "cambios": {"fixture": {}},
+    },
+    {
+        "nombre": "RANURA_FIXTURE_NO_TEXTO",
+        "rama": "fixture[ruta] no es texto",
+        "detalle_espera": "debe ser una cadena de texto",
+        "cambios": {
+            "fixture": {"calc/x.py": 5, "reproductor.py": "", "regresion.py": ""}
+        },
+    },
+    {
+        "nombre": "RANURA_FIXTURE_SIN_EXAMEN",
+        "rama": "fixture sin reproductor/regresion",
+        "detalle_espera": "el fixture no trae el examen",
+        "cambios": {"fixture": {"calc/x.py": "X = 1\n"}},
+    },
+    {
+        "nombre": "RANURA_BINARIO_NO_DICT",
+        "rama": "fixture_binario no es objeto",
+        "detalle_espera": "fixture_binario debe ser un objeto JSON",
+        "cambios": {"fixture_binario": ["tests/a.png"]},
+    },
+    {
+        "nombre": "RANURA_BINARIO_SIN_BLOB",
+        "rama": "binario sin OID",
+        "detalle_espera": "debe traer un blob OID",
+        "cambios": {"fixture_binario": {"tests/a.png": {"bytes": 3}}},
+    },
+    {
+        "nombre": "RANURA_BINARIO_REPITE",
+        "rama": "binario repite ruta de texto",
+        "detalle_espera": "repite una ruta del fixture de texto",
+        "cambios": {"fixture_binario": {"calc/x.py": {"blob": "0" * 40, "bytes": 1}}},
+    },
+    {
+        "nombre": "RANURA_PARCHE_VACIO",
+        "rama": "parche no lista o vacia",
+        "detalle_espera": "parche debe ser una lista no vacia",
+        "cambios": {"parche": []},
+    },
+    {
+        "nombre": "RANURA_PARCHE_NO_OBJETO",
+        "rama": "parche[i] no es objeto",
+        "detalle_espera": "parche[0] no es un objeto",
+        "cambios": {"parche": ["calc/x.py"]},
+    },
+    {
+        "nombre": "RANURA_PARCHE_SIN_CLAVES",
+        "rama": "parche[i] sin claves",
+        "detalle_espera": "parche[0] sin claves",
+        "cambios": {"parche": [{"archivo": "calc/x.py"}]},
+    },
+    {
+        "nombre": "RANURA_PARCHE_BUSCAR_VACIO",
+        "rama": "parche[i].buscar vacio",
+        "detalle_espera": "parche[0].buscar debe ser una cadena no vacia",
+        "cambios": {"parche": _parche_ranura(buscar="")},
+    },
+    {
+        "nombre": "RANURA_OCURRENCIAS_TEXTO",
+        "rama": "ocurrencias en texto",
+        "detalle_espera": "parche[0].ocurrencias debe ser un entero",
+        "cambios": {"parche": _parche_ranura(ocurrencias="1")},
+    },
+    {
+        # En Python `True` ES un int: sin la guarda explicita del validador,
+        # `ocurrencias=true` pasaria como 1 y la receta correria.
+        "nombre": "RANURA_OCURRENCIAS_BOOL",
+        "rama": "ocurrencias bool (misma rama que TEXTO)",
+        "detalle_espera": "parche[0].ocurrencias debe ser un entero",
+        "cambios": {"parche": _parche_ranura(ocurrencias=True)},
+    },
+    {
+        "nombre": "RANURA_OCURRENCIAS_CERO",
+        "rama": "ocurrencias < 1",
+        "detalle_espera": "parche[0].ocurrencias debe ser >= 1",
+        "cambios": {"parche": _parche_ranura(ocurrencias=0)},
     },
 ]
 
@@ -924,6 +1085,197 @@ def _linea_banco(r, espera):
     )
 
 
+ESPERA_RANURA = "ABORTA_RECETA_INVALIDA"
+
+
+def _ranura_ok(r):
+    """Una fila de ranura pasa solo con las TRES evidencias a la vez.
+
+    El RC es uniforme (2) en todas las ramas, asi que no discrimina: la unica
+    prueba de haber caido en LA rama esperada es el texto del detalle.
+    """
+    return (
+        r["causa"] == r["espera"]
+        and r["detalle_espera"] in (r["detalle"] or "")
+        and r["rc"] == 2
+    )
+
+
+def _linea_ranura(r):
+    return "[RANURA] %-30s rc=%-2s CAUSA=%-25s RAMA=%-44s %s" % (
+        r["caso"],
+        r["rc"],
+        str(r["causa"]),
+        r["rama"],
+        "OK" if _ranura_ok(r) else "ROJO",
+    )
+
+
+def _causas_del_motor(ruta=None):
+    """Causas `ABORTA_*` que el motor puede emitir, leidas del propio fuente.
+
+    HUELLA-BANCO-RANURA-EXTERNA-20261020: la cobertura del banco no se declara,
+    se mide. Una causa nueva en el codigo sin fila en el banco deja el banco en
+    rojo, que es el unico modo de que la promesa no envejezca sola.
+    """
+    with open(ruta or os.path.abspath(__file__), encoding="utf-8") as fh:
+        arbol = ast.parse(fh.read())
+    causas = set()
+    no_literal = 0
+    for nodo in ast.walk(arbol):
+        if isinstance(nodo, ast.Call) and getattr(nodo.func, "id", None) == "Aborta":
+            arg = nodo.args[0] if nodo.args else None
+            if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+                causas.add(arg.value)
+            else:
+                no_literal += 1
+    return causas, no_literal
+
+
+_FORMATO_PY = r"%[-+ #0-9.]*[sdri%]"
+
+
+def _regex_plantilla(plantilla):
+    """Plantilla de `detalle` -> patron que acepta el mensaje ya formateado."""
+    partes = re.split(_FORMATO_PY, plantilla)
+    return re.compile("^" + ".*".join(re.escape(p) for p in partes) + "$")
+
+
+def _ramas_del_validador(ruta=None):
+    """Ramas de `_cargar_receta`, leidas del propio fuente por AST.
+
+    HUELLA-BANCO-RANURA-RAMAS-20261020: la cobertura por causa es degenerada
+    aqui (las 19 filas comparten `ABORTA_RECETA_INVALIDA`), asi que medir causas
+    daria verde con una sola fila. La unidad es la RAMA: la plantilla del
+    `detalle`. Cada `Aborta` de la funcion es una rama; una sin fila en rojo.
+    """
+    with open(ruta or os.path.abspath(__file__), encoding="utf-8") as fh:
+        arbol = ast.parse(fh.read())
+    validadores = [
+        n
+        for n in ast.walk(arbol)
+        if isinstance(n, ast.FunctionDef) and n.name == "_cargar_receta"
+    ]
+    if not validadores:
+        return []
+    ramas = []
+    for nodo in ast.walk(validadores[0]):
+        if not (isinstance(nodo, ast.Call) and getattr(nodo.func, "id", None) == "Aborta"):
+            continue
+        if len(nodo.args) < 2:
+            continue
+        plantilla = None
+        for hijo in ast.walk(nodo.args[1]):
+            if isinstance(hijo, ast.Constant) and isinstance(hijo.value, str):
+                plantilla = hijo.value
+                break
+        if plantilla is None:
+            continue
+        ramas.append(
+            {
+                "linea": nodo.lineno,
+                "plantilla": plantilla,
+                "regex": _regex_plantilla(plantilla),
+            }
+        )
+    return sorted(ramas, key=lambda r: r["linea"])
+
+
+def _rama_de(detalle, ramas):
+    """Linea de la rama que emitio `detalle`; None si ninguna plantilla lo explica.
+
+    Varias plantillas pueden casar (una generica y una especifica): gana la mas
+    larga. Sin candidata devuelve None, que el banco trata como fallo y no como
+    aprobado por silencio.
+    """
+    if not detalle:
+        return None
+    candidatas = [r for r in ramas if r["regex"].match(detalle)]
+    if not candidatas:
+        return None
+    return max(candidatas, key=lambda r: len(r["plantilla"]))["linea"]
+
+
+def _receta_ranura(**cambios):
+    """Receta VALIDA; cada fila del banco la invalida en UN solo punto.
+
+    Si la base no fuese valida, la fila no probaria su rama: probaria la
+    anterior, y el banco daria verde con una rama muerta.
+    """
+    r = {
+        "nombre": "BANCO_RANURA",
+        "familia": "banco/ranura",
+        "sol_referencia": "CONTROL NEGATIVO DE LA RANURA EXTERNA",
+        "sintoma": "AssertionError",
+        "fixture": {
+            "calc/x.py": "X = 1\n",
+            "reproductor.py": "import calc.x\n",
+            "regresion.py": "import calc.x\n",
+        },
+        "parche": _parche_ranura(),
+    }
+    r.update(cambios)
+    return r
+
+
+def _escribir_ranura(caso, dir_tmp):
+    """Materializa el JSON de la fila. La ruta ausente NO se crea."""
+    if caso.get("ruta_inexistente"):
+        return os.path.join(dir_tmp, "NO_EXISTE_%s.json" % caso["nombre"])
+    ruta = os.path.join(dir_tmp, "%s.json" % caso["nombre"])
+    if "crudo" in caso:
+        texto = caso["crudo"]
+    elif "receta" in caso:
+        texto = json.dumps(caso["receta"], ensure_ascii=False)
+    else:
+        objeto = _receta_ranura(**caso.get("cambios", {}))
+        for clave in caso.get("quitar", []):
+            objeto.pop(clave, None)
+        texto = json.dumps(objeto, ensure_ascii=False)
+    with open(ruta, "w", encoding="utf-8") as fh:
+        fh.write(texto)
+    return ruta
+
+
+def _correr_ranura(caso, dir_tmp):
+    """Ejerce el validador de `--receta` por subproceso, como lo haria un usuario.
+
+    Fail-closed: sin recibo parseable la causa es `SIN_RECIBO`, que no casa con
+    ninguna espera, asi que la fila falla en vez de aprobarse por silencio.
+    """
+    ruta = _escribir_ranura(caso, dir_tmp)
+    t0 = time.time()
+    proc = subprocess.run(
+        [sys.executable, os.path.abspath(__file__), "--receta", ruta, "--json"],
+        capture_output=True,
+        text=True,
+        timeout=TIMEOUT_S,
+    )
+    causa = None
+    detalle = None
+    salida = proc.stdout or ""
+    if "## JSON" in salida:
+        try:
+            bloque = salida.split("## JSON", 1)[1].split("\nHORA_FIN")[0]
+            recibo = json.loads(bloque).get("receta") or {}
+            causa = recibo.get("causa")
+            detalle = recibo.get("detalle")
+        except ValueError:
+            causa = None
+    return {
+        "caso": caso["nombre"],
+        "familia": "banco/invariante-ranura-externa",
+        "rama": caso.get("rama"),
+        "fase_alcanzada": "RANURA",
+        "causa": causa or "SIN_RECIBO",
+        "detalle": detalle,
+        "rc": proc.returncode,
+        "espera": ESPERA_RANURA,
+        "detalle_espera": caso["detalle_espera"],
+        "seg": round(time.time() - t0, 3),
+    }
+
+
 def _linea_receta(r, ruta):
     marca = ""
     b = r.get("binarios") or {}
@@ -1014,9 +1366,75 @@ def main(argv=None):
             if r["causa"] == receta["espera"]:
                 correctas += 1
             print(_linea_banco(r, receta["espera"]))
-        print("BANCO: %d/%d causa correcta" % (correctas, len(filas)))
-        salida["banco"] = filas
-        if correctas != len(filas):
+
+        ranuras = []
+        correctas_ranura = 0
+        ramas = _ramas_del_validador()
+        with tempfile.TemporaryDirectory(prefix="sandbox_ranura_") as dir_tmp:
+            for caso in RECETAS_BANCO_RANURA:
+                r = _correr_ranura(caso, dir_tmp)
+                r["rama_linea"] = _rama_de(r["detalle"], ramas)
+                ranuras.append(r)
+                if _ranura_ok(r):
+                    correctas_ranura += 1
+                print(_linea_ranura(r))
+
+        causas, no_literal = _causas_del_motor()
+        mensajes = {r["detalle"] for r in ranuras if r["detalle"]}
+        print(
+            "RANURA: %d filas · %d mensajes distintos · rc medidos=%s"
+            % (len(ranuras), len(mensajes), sorted({r["rc"] for r in ranuras}))
+        )
+        ejercidas = {r["rama_linea"] for r in ranuras if r["rama_linea"]}
+        sin_ejercer = [
+            "L%d: %s" % (r["linea"], r["plantilla"])
+            for r in ramas
+            if r["linea"] not in ejercidas
+        ]
+        no_identificada = [r["caso"] for r in ranuras if not r["rama_linea"]]
+        ramas_ok = bool(ramas) and not sin_ejercer and not no_identificada
+        print(
+            "RAMAS: %d/%d ramas del validador ejercidas%s"
+            % (
+                len(ejercidas),
+                len(ramas),
+                ""
+                if ramas_ok
+                else " · SIN_EJERCER=%s · NO_IDENTIFICADA=%s"
+                % (sin_ejercer, no_identificada),
+            )
+        )
+        con_fila = {rec["espera"] for rec in RECETAS_BANCO} | {
+            caso.get("espera", ESPERA_RANURA) for caso in RECETAS_BANCO_RANURA
+        }
+        sin_fila = sorted(causas - con_fila)
+        cobertura_ok = not sin_fila and no_literal == 0 and ramas_ok
+        print(
+            "BANCO: %d/%d causa correcta (fases) · %d/%d rama correcta (ranura)"
+            % (correctas, len(filas), correctas_ranura, len(ranuras))
+        )
+        print(
+            "COBERTURA: %d/%d causas con fila%s"
+            % (
+                len(causas & con_fila),
+                len(causas),
+                ""
+                if cobertura_ok
+                else " · SIN_FILA=%s · NO_LITERAL=%d" % (sin_fila, no_literal),
+            )
+        )
+        salida["banco"] = filas + ranuras
+        salida["cobertura"] = {
+            "causas": sorted(causas),
+            "cubiertas": sorted(causas & con_fila),
+            "sin_fila": sin_fila,
+            "no_literal": no_literal,
+            "ramas": len(ramas),
+            "ramas_ejercidas": sorted(ejercidas),
+            "ramas_sin_ejercer": sin_ejercer,
+            "ramas_no_identificadas": no_identificada,
+        }
+        if correctas != len(filas) or correctas_ranura != len(ranuras) or not cobertura_ok:
             rc = 1
 
     if args.receta:

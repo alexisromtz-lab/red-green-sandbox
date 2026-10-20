@@ -25,7 +25,7 @@ un test reescrito para pasar.
 
 ```bash
 python3 sandbox.py                     # piloto por defecto: 3 recetas sintéticas
-python3 sandbox.py --banco             # banco must-fail: 9 casos que DEBEN abortar
+python3 sandbox.py --banco             # banco must-fail: 26 filas que DEBEN abortar (9 fase + 17 rama)
 python3 sandbox.py --json              # reporte máquina-legible
 python3 sandbox.py --receta PATH.json  # receta externa, de fuera del repositorio
 ```
@@ -39,15 +39,23 @@ Salida del piloto (medida, `python3 3.14.7`):
 PILOTO: 3/3 CERTIFICADO_RED_GREEN
 ```
 
-Banco must-fail: **5/5 por causa** (no sólo por código de salida):
+Banco must-fail: **9/9 por causa** (no sólo por código de salida) **+ 17/17 por rama**
+del validador de `--receta`:
 
 | caso | fase | causa |
 |---|---|---|
 | `FALSO_REPRODUCTOR_PASA_EN_RED` | RED | `ABORTA_REPRODUCTOR_FALSO` |
 | `SINTOMA_NO_OBSERVADO` | RED | `ABORTA_SINTOMA_NO_OBSERVADO` |
+| `FIXTURE_BINARIO_FALTANTE` | RED | `ABORTA_FIXTURE_BINARIO_FALTANTE` |
 | `PARCHE_QUE_NO_CASA` | PATCH | `ABORTA_PARCHE_NO_APLICA` |
 | `EXAMEN_DENTRO_DEL_PARCHE` | PATCH | `ABORTA_EXAMEN_MOVIDO` |
+| `ESCRITURA_NO_DECLARADA` | PATCH | `ABORTA_ESCRITURA_NO_DECLARADA` |
 | `VERDE_QUE_NO_LLEGA` | GREEN | `ABORTA_VERDE_FALLIDO` |
+| `REGRESION_ROTA_ANTES` | SETUP | `ABORTA_REGRESION_ROTA` |
+| `REGRESION_ROTA_DESPUES` | GREEN | `ABORTA_REGRESION_ROTA` |
+
+Las 17 filas `RANURA_*` ejercen el validador de `--receta` por subproceso: una fila por
+rama de `_cargar_receta`, cada una exigiendo `causa` + prefijo de `detalle` + `RC=2`.
 
 ## Receta externa — `--receta PATH.json`
 
@@ -61,14 +69,14 @@ python3 sandbox.py --receta /ruta/a/receta.json --json   # veredicto máquina-le
 ```
 
 `--receta` corre **sólo** la receta externa: no arrastra el piloto ni el banco
-(`hacer_piloto = args.piloto or (not args.banco and not args.receta)`, `sandbox.py:986`).
+(`hacer_piloto = args.piloto or (not args.banco and not args.receta)`, `sandbox.py:1338`).
 Medido: la salida de una corrida con `--receta` tiene **0** líneas `[PILOTO]` y **1**
 línea `[RECETA]`. Con `--json`, el reporte trae una clave `receta` con `caso`,
 `fase_alcanzada` y `veredicto`.
 
 ### El contrato: seis claves, todas obligatorias
 
-`CLAVES_RECETA` (`sandbox.py:80`) son las mismas seis que usan las recetas del
+`CLAVES_RECETA` (`sandbox.py:101`) son las mismas seis que usan las recetas del
 repositorio. Ninguna se suple con un default silencioso: si falta una, la receta **no
 corre**.
 
@@ -84,10 +92,10 @@ corre**.
 `sintoma` es una **cadena**, no un objeto: el motor busca esa subcadena en la salida
 combinada del reproductor. `fixture` admite rutas con subdirectorio (`calc/texto.py`);
 las claves del examen son `EXAMEN = ("reproductor.py", "regresion.py")`
-(`sandbox.py:54`) y sin ellas la receta se rechaza.
+(`sandbox.py:97`) y sin ellas la receta se rechaza.
 
 Cada elemento de `parche` exige las cuatro claves de `CLAVES_PARCHE`
-(`sandbox.py:66`): `archivo`, `buscar` y `reemplazar` cadenas no vacías, y
+(`sandbox.py:109`): `archivo`, `buscar` y `reemplazar` cadenas no vacías, y
 `ocurrencias` un **entero mayor o igual a 1** (un booleano se rechaza de forma
 explícita). `buscar` tiene que casar **exactamente** `ocurrencias` veces.
 
@@ -124,7 +132,7 @@ hay una séptima clave, **opcional**: `fixture_binario`, con forma
 python3 sandbox.py --receta receta.json --repo /ruta/al/repo   # materializa los binarios
 ```
 
-Reglas, leídas del motor (`sandbox.py:452` `_materializar_binarios`, `sandbox.py:668`
+Reglas, leídas del motor (`sandbox.py:613` `_materializar_binarios`, `sandbox.py:834`
 validación de la clave):
 
 | regla | consecuencia |
@@ -207,9 +215,20 @@ Teardown medido tras las seis corridas: `find /tmp -maxdepth 1 -name
 ### El banco mide que el motor sepa NO certificar
 
 `--banco` exige `causa == espera` en cada fila. Una causa que ninguna fila dispara es
-una rama que nadie ha visto ejecutarse. Cobertura declarada en `v1.2.0`: **8 de las 9
-causas**. `ABORTA_RECETA_INVALIDA` queda fuera a propósito — vive en el validador de
-`--receta` y se ejerce desde fuera (`RC=2`), no con filas del banco.
+una rama que nadie ha visto ejecutarse. Cobertura medida en `v1.3.0`: **9 de las 9
+causas**, contadas por AST sobre el propio fuente (`_causas_del_motor`), no declaradas.
+
+Pero la causa es una unidad **gruesa**. En la ranura externa las 19 filas comparten
+`ABORTA_RECETA_INVALIDA`: con una sola fila la cobertura por causa quedaba completa y
+una rama muerta pasaba invisible — el mismo defecto que un total correcto con la
+clasificación rota. Por eso `v1.3.0` mide además la **rama**: `_ramas_del_validador`
+lee por AST los 17 sitios `Aborta` de `_cargar_receta` y cada recibo se atribuye a la
+plantilla de `detalle` más específica que lo explica. Medido: **17/17 ramas**, 19 filas,
+18 mensajes distintos (dos filas comparten la rama `ocurrencias`).
+
+El control que prueba que el invariante no es decorativo: borrar la fila
+`RANURA_PARCHE_VACIO` deja `BANCO 9/9 · 18/18` y `COBERTURA 9/9` en verde, y el banco
+sale `RC=1` igual por `RAMAS 16/17`. Sin la cobertura por rama, ese hueco era invisible.
 
 `ABORTA_REGRESION_ROTA` se emite en **dos caras** y la causa no las distingue; el
 recibo sí, por `fase_alcanzada`: `SETUP` = la regresión ya fallaba en el árbol base (el
