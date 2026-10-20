@@ -43,6 +43,18 @@ no muestra el sintoma y nombra un binario declarado que no se materializo, la
 causa es `ABORTA_FIXTURE_BINARIO_FALTANTE`, no un ABORTA generico: el fixture
 estaba incompleto y lo dice.
 
+Banco de causas (HUELLA-BANCO-NEGATIVO-INSTRUMENTO-20261020): `--banco` no mide
+que el motor certifique, mide que SEPA NO CERTIFICAR. Cada fila declara la causa
+esperada y el banco exige `causa == espera`; una causa sin fila es una rama que
+nadie ha visto dispararse. Cobertura declarada tras v1.2.0: 8 de las 9 causas.
+`ABORTA_RECETA_INVALIDA` queda FUERA a proposito: vive en el validador de
+`--receta`, que no pasa por `_correr_caso`, y se ejerce desde fuera, no con filas.
+
+Dos caras, una causa: `ABORTA_REGRESION_ROTA` se emite antes y despues del
+parche. `causa == espera` no las distingue; el recibo si, por `fase_alcanzada`
+(SETUP = la regresion ya fallaba en base, el control no vale; GREEN = el parche
+rompio la regresion). Se declaran como dos filas, no como una.
+
 Nota de fidelidad: los fixtures son SINTETICOS. `sol_referencia` nombra la
 familia del corpus que el laboratorio ejercita; NO se reclama que el fixture
 sea el objeto de esa fila. La fila es la familia, el fixture es la instancia.
@@ -58,7 +70,7 @@ import tempfile
 import time
 from difflib import unified_diff
 
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 PREFIJO_SANDBOX = "sandbox_corpus_"
 TIMEOUT_S = 60
 EXAMEN = ("reproductor.py", "regresion.py")
@@ -326,6 +338,80 @@ RECETAS_BANCO = [
                 "reemplazar": "assert True",
                 "ocurrencias": 1,
             }
+        ],
+    },
+    {
+        # Cara ANTES de la misma causa: la regresion ya falla sobre el arbol
+        # base, asi que el control de no-regresion no vale y el motor corta en
+        # SETUP (regresion_rc_pre != 0, regresion_rc_post = None).
+        "nombre": "REGRESION_ROTA_ANTES",
+        "familia": "banco/invariante-REGRESION-antes",
+        "sol_referencia": "CONTROL NEGATIVO DEL LABORATORIO",
+        "sintoma": "AssertionError",
+        "espera": "ABORTA_REGRESION_ROTA",
+        "fixture": {
+            **_fixture("calc/csv_min.py", R1_PRE, R1_TEST),
+            "regresion.py": "raise SystemExit(9)\n",
+        },
+        "parche": [
+            {
+                "archivo": "calc/csv_min.py",
+                "buscar": '    return [c.strip() for c in linea.split(",")]\n',
+                "reemplazar": R1_POST,
+                "ocurrencias": 1,
+            }
+        ],
+    },
+    {
+        # Cara DESPUES: el parche arregla el reproductor y a la vez rompe la
+        # regresion en OTRO archivo. El sintoma se observa, el examen no se
+        # mueve, y lo que corta es la no-regresion (fase GREEN,
+        # reproductor_rc_post = None).
+        "nombre": "REGRESION_ROTA_DESPUES",
+        "familia": "banco/invariante-REGRESION-despues",
+        "sol_referencia": "CONTROL NEGATIVO DEL LABORATORIO",
+        "sintoma": "AssertionError",
+        "espera": "ABORTA_REGRESION_ROTA",
+        "fixture": _fixture("calc/csv_min.py", R1_PRE, R1_TEST),
+        "parche": [
+            {
+                "archivo": "calc/csv_min.py",
+                "buscar": '    return [c.strip() for c in linea.split(",")]\n',
+                "reemplazar": R1_POST,
+                "ocurrencias": 1,
+            },
+            {
+                "archivo": "calc/texto.py",
+                "buscar": "    return s.strip()\n",
+                "reemplazar": "    return s\n",
+                "ocurrencias": 1,
+            },
+        ],
+    },
+    {
+        # El mismo archivo declarado con dos grafias: `_aplicar` lo escribe de
+        # verdad, pero el registro queda con dos claves mientras el snapshot
+        # tiene una. El invariante no puede atribuir la escritura y corta en
+        # PATCH en vez de certificar.
+        "nombre": "ESCRITURA_NO_DECLARADA",
+        "familia": "banco/invariante-escritura-declarada",
+        "sol_referencia": "CONTROL NEGATIVO DEL LABORATORIO",
+        "sintoma": "AssertionError",
+        "espera": "ABORTA_ESCRITURA_NO_DECLARADA",
+        "fixture": _fixture("calc/csv_min.py", R1_PRE, R1_TEST),
+        "parche": [
+            {
+                "archivo": "./calc/csv_min.py",
+                "buscar": "def campos(linea):\n",
+                "reemplazar": "def campos(linea):  # alias\n",
+                "ocurrencias": 1,
+            },
+            {
+                "archivo": "calc/csv_min.py",
+                "buscar": '    return [c.strip() for c in linea.split(",")]\n',
+                "reemplazar": R1_POST,
+                "ocurrencias": 1,
+            },
         ],
     },
 ]

@@ -25,7 +25,7 @@ un test reescrito para pasar.
 
 ```bash
 python3 sandbox.py                     # piloto por defecto: 3 recetas sintéticas
-python3 sandbox.py --banco             # banco must-fail: 5 casos que DEBEN abortar
+python3 sandbox.py --banco             # banco must-fail: 9 casos que DEBEN abortar
 python3 sandbox.py --json              # reporte máquina-legible
 python3 sandbox.py --receta PATH.json  # receta externa, de fuera del repositorio
 ```
@@ -61,14 +61,14 @@ python3 sandbox.py --receta /ruta/a/receta.json --json   # veredicto máquina-le
 ```
 
 `--receta` corre **sólo** la receta externa: no arrastra el piloto ni el banco
-(`hacer_piloto = args.piloto or (not args.banco and not args.receta)`, `sandbox.py:740`).
+(`hacer_piloto = args.piloto or (not args.banco and not args.receta)`, `sandbox.py:986`).
 Medido: la salida de una corrida con `--receta` tiene **0** líneas `[PILOTO]` y **1**
 línea `[RECETA]`. Con `--json`, el reporte trae una clave `receta` con `caso`,
 `fase_alcanzada` y `veredicto`.
 
 ### El contrato: seis claves, todas obligatorias
 
-`CLAVES_RECETA` (`sandbox.py:58`) son las mismas seis que usan las recetas del
+`CLAVES_RECETA` (`sandbox.py:80`) son las mismas seis que usan las recetas del
 repositorio. Ninguna se suple con un default silencioso: si falta una, la receta **no
 corre**.
 
@@ -160,6 +160,18 @@ Teardown medido tras las cinco corridas: `find /tmp -maxdepth 1 -name
   ⇒ `ABORTA_ESCRITURA_NO_DECLARADA`.
 - **GREEN**: mismo reproductor byte a byte y `rc == 0`. Si no ⇒ `ABORTA_VERDE_FALLIDO`.
 - **TEARDOWN**: el sandbox (`/tmp/sandbox_corpus_*`) no sobrevive a la corrida.
+
+### El banco mide que el motor sepa NO certificar
+
+`--banco` exige `causa == espera` en cada fila. Una causa que ninguna fila dispara es
+una rama que nadie ha visto ejecutarse. Cobertura declarada en `v1.2.0`: **8 de las 9
+causas**. `ABORTA_RECETA_INVALIDA` queda fuera a propósito — vive en el validador de
+`--receta` y se ejerce desde fuera (`RC=2`), no con filas del banco.
+
+`ABORTA_REGRESION_ROTA` se emite en **dos caras** y la causa no las distingue; el
+recibo sí, por `fase_alcanzada`: `SETUP` = la regresión ya fallaba en el árbol base (el
+control de no-regresión no vale) y `GREEN` = el parche rompió la regresión. Son dos
+filas, no una.
 
 ## Alcance
 
