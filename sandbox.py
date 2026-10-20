@@ -28,6 +28,11 @@ Alcance de escritura: SOLO el sandbox temporal (`/tmp/sandbox_corpus_*`).
 Este modulo no importa `agent.py` ni `router_soluciones_v2.py` y no escribe
 `INDICE_SOLUCIONES.json`: mide objetos ajenos sin tocarlos.
 
+Ranura externa (HUELLA-SANDBOX-RECETA-EXTERNA-MRUN25-20261020): `--receta
+PATH.json` ejecuta una receta de FUERA del repositorio, validada contra el mismo
+contrato que las recetas internas. El motor no guarda casos ajenos: los recibe.
+Un caso externo no se codifica dentro de este archivo; se envuelve en JSON.
+
 Nota de fidelidad: los fixtures son SINTETICOS. `sol_referencia` nombra la
 familia del corpus que el laboratorio ejercita; NO se reclama que el fixture
 sea el objeto de esa fila. La fila es la familia, el fixture es la instancia.
@@ -47,6 +52,18 @@ VERSION = "1.0.0"
 PREFIJO_SANDBOX = "sandbox_corpus_"
 TIMEOUT_S = 60
 EXAMEN = ("reproductor.py", "regresion.py")
+
+# Contrato de una receta externa: las MISMAS seis claves que las recetas del
+# repositorio. Fail-closed: ninguna se suple con un default silencioso.
+CLAVES_RECETA = (
+    "nombre",
+    "familia",
+    "sol_referencia",
+    "sintoma",
+    "fixture",
+    "parche",
+)
+CLAVES_PARCHE = ("archivo", "buscar", "reemplazar", "ocurrencias")
 
 # --------------------------------------------------------------------------
 # Fixtures (contenido exacto; sin dedent, para que el parche case literal)
@@ -419,6 +436,90 @@ def _hash_parche(sustituciones):
     return _sha256_hex(canon)
 
 
+def _cargar_receta(ruta):
+    """Carga y valida una receta externa. Fail-closed, sin defaults silenciosos.
+
+    HUELLA-SANDBOX-RECETA-EXTERNA-MRUN25-20261020
+    """
+    if not os.path.isfile(ruta):
+        raise Aborta(
+            "ABORTA_RECETA_INVALIDA", "ruta ausente o no es un archivo: %s" % ruta
+        )
+    try:
+        with open(ruta, encoding="utf-8") as fh:
+            receta = json.load(fh)
+    except ValueError as e:
+        raise Aborta("ABORTA_RECETA_INVALIDA", "JSON ilegible: %s" % e)
+
+    if not isinstance(receta, dict):
+        raise Aborta("ABORTA_RECETA_INVALIDA", "la receta no es un objeto JSON")
+
+    faltan = [k for k in CLAVES_RECETA if k not in receta]
+    if faltan:
+        raise Aborta(
+            "ABORTA_RECETA_INVALIDA",
+            "claves ausentes: %s (contrato: %s)" % (faltan, list(CLAVES_RECETA)),
+        )
+
+    for clave in ("nombre", "familia", "sol_referencia", "sintoma"):
+        if not isinstance(receta[clave], str) or not receta[clave].strip():
+            raise Aborta(
+                "ABORTA_RECETA_INVALIDA", "%s debe ser una cadena no vacia" % clave
+            )
+
+    fixture = receta["fixture"]
+    if not isinstance(fixture, dict) or not fixture:
+        raise Aborta(
+            "ABORTA_RECETA_INVALIDA", "fixture debe ser un objeto JSON no vacio"
+        )
+    for rel in sorted(fixture):
+        if not isinstance(fixture[rel], str):
+            raise Aborta(
+                "ABORTA_RECETA_INVALIDA",
+                "fixture[%r] debe ser una cadena de texto" % rel,
+            )
+    faltan_examen = [k for k in EXAMEN if k not in fixture]
+    if faltan_examen:
+        raise Aborta(
+            "ABORTA_RECETA_INVALIDA", "el fixture no trae el examen: %s" % faltan_examen
+        )
+
+    parche = receta["parche"]
+    if not isinstance(parche, list) or not parche:
+        raise Aborta("ABORTA_RECETA_INVALIDA", "parche debe ser una lista no vacia")
+    for i, s in enumerate(parche):
+        if not isinstance(s, dict):
+            raise Aborta("ABORTA_RECETA_INVALIDA", "parche[%d] no es un objeto" % i)
+        faltan_s = [k for k in CLAVES_PARCHE if k not in s]
+        if faltan_s:
+            raise Aborta(
+                "ABORTA_RECETA_INVALIDA",
+                "parche[%d] sin claves: %s (contrato: %s)"
+                % (i, faltan_s, list(CLAVES_PARCHE)),
+            )
+        for clave in ("archivo", "buscar", "reemplazar"):
+            if not isinstance(s[clave], str) or not s[clave]:
+                raise Aborta(
+                    "ABORTA_RECETA_INVALIDA",
+                    "parche[%d].%s debe ser una cadena no vacia" % (i, clave),
+                )
+        if isinstance(s["ocurrencias"], bool) or not isinstance(
+            s["ocurrencias"], int
+        ):
+            raise Aborta(
+                "ABORTA_RECETA_INVALIDA",
+                "parche[%d].ocurrencias debe ser un entero" % i,
+            )
+        if s["ocurrencias"] < 1:
+            raise Aborta(
+                "ABORTA_RECETA_INVALIDA",
+                "parche[%d].ocurrencias debe ser >= 1 (declarado: %d)"
+                % (i, s["ocurrencias"]),
+            )
+
+    return receta
+
+
 # --------------------------------------------------------------------------
 # El runner de las cuatro fases
 # --------------------------------------------------------------------------
@@ -593,6 +694,33 @@ def _linea_banco(r, espera):
     )
 
 
+def _linea_receta(r, ruta):
+    if r["veredicto"] == "CERTIFICADO_RED_GREEN":
+        mas = sum(v["mas"] for v in r["numstat"].values())
+        menos = sum(v["menos"] for v in r["numstat"].values())
+        return (
+            "[RECETA] %-34s RED rc=%s (%s)  PATCH +%d/-%d  "
+            "GREEN rc=%s  %s  ruta=%s"
+            % (
+                r["caso"],
+                r["reproductor_rc_pre"],
+                r["sintoma_esperado"],
+                mas,
+                menos,
+                r["reproductor_rc_post"],
+                r["veredicto"],
+                ruta,
+            )
+        )
+    return "[RECETA] %-34s FASE=%s  CAUSA=%s  detalle=%s  ruta=%s" % (
+        r["caso"],
+        r["fase_alcanzada"],
+        r["causa"],
+        r["detalle"],
+        ruta,
+    )
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(
         description="Laboratorio Red -> Green en sandbox efimero"
@@ -600,9 +728,16 @@ def main(argv=None):
     ap.add_argument("--piloto", action="store_true", help="corre las 3 recetas piloto")
     ap.add_argument("--banco", action="store_true", help="corre el banco must-fail")
     ap.add_argument("--json", action="store_true", help="emite el reporte JSON")
+    ap.add_argument(
+        "--receta",
+        metavar="PATH",
+        default=None,
+        help="corre una receta externa en JSON (contrato: %s)"
+        % ", ".join(CLAVES_RECETA),
+    )
     args = ap.parse_args(argv)
 
-    hacer_piloto = args.piloto or not args.banco
+    hacer_piloto = args.piloto or (not args.banco and not args.receta)
     hacer_banco = args.banco
 
     print("HORA_INI=%s VERSION=%s" % (time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), VERSION))
@@ -637,6 +772,32 @@ def main(argv=None):
         salida["banco"] = filas
         if correctas != len(filas):
             rc = 1
+
+    if args.receta:
+        # Ranura externa: el motor recibe la receta, no la guarda.
+        receta_externa = None
+        try:
+            receta_externa = _cargar_receta(args.receta)
+        except Aborta as e:
+            print(
+                "[RECETA] %-34s CAUSA=%s  detalle=%s  ruta=%s"
+                % ("RECETA_EXTERNA", e.causa, e.detalle, args.receta)
+            )
+            salida["receta"] = {
+                "ruta": args.receta,
+                "veredicto": "ABORTA",
+                "causa": e.causa,
+                "detalle": e.detalle,
+            }
+            # RC=2 domina: la receta no se pudo ejecutar (nada corrio).
+            if rc < 2:
+                rc = 2
+        if receta_externa is not None:
+            r = _correr_caso(receta_externa)
+            print(_linea_receta(r, args.receta))
+            salida["receta"] = r
+            if r["veredicto"] != "CERTIFICADO_RED_GREEN" and rc == 0:
+                rc = 1
 
     if args.json:
         print("## JSON")
