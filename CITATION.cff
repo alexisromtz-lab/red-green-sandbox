@@ -1,0 +1,27 @@
+# HUELLA-CITATION-RGS-V130-20261020
+# Creado por gate_pre_escritura.sh RC 10 a 2026-10-20T16:41:55Z (objeto inexistente, blob e69de29b, 0 lineas).
+# Autor y entidad medidos, no inventados: git config user.name = "Jose Alexis Roman Martinez";
+# pyproject.toml authors = [{ name = "Platino Labs" }]; LICENSE = "Copyright (c) 2026 Platino Labs".
+# DESFASE DECLARADO, no corregido: pyproject.toml dice version = "1.0.0"; el motor sandbox.py dice 1.3.0.
+# La version de esta cita es la del motor (1.3.0), que es la que el tag v1.3.0 apunta.
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "Red-Green Sandbox"
+abstract: >-
+  Certifica que un parche resuelve un issue: RC != 0 -> RC == 0 sin mutar el examen.
+authors:
+  - family-names: "Roman Martinez"
+    given-names: "Jose Alexis"
+  - name: "Platino Labs"
+version: 1.3.0
+date-released: 2026-10-20
+repository-code: "https://github.com/alexisromtz-lab/red-green-sandbox"
+url: "https://github.com/alexisromtz-lab/red-green-sandbox"
+license: MIT
+keywords:
+  - testing
+  - red-green
+  - patch-verification
+  - ci
+  - reproducibility
