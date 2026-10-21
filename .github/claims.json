@@ -1,0 +1,99 @@
+{
+  "huella": "HUELLA-RG-SANDBOX-CLAIMS-WITNESS-README-20261020",
+  "repo": "red-green-sandbox",
+  "clase": "A",
+  "acta": "HUELLA-RG-CLAIMS-MECANIZABLE-20261020",
+  "nota": "Censo congelado en platino-labs/sim/PREREGISTRO_CLAIMS_RG_PC_20261020.md §9.2: 12 figuras distintas en el README, 10 mecanizables, 3 portadores preexistentes. deriva apunta a tests/test_ancla_banco.py::reporte_crudo, a sandbox.py::_ramas_del_validador y a tests/test_sandbox.py::correr, y NUNCA a tests/test_claims_witness.py: un claims.json cuyo deriva nombrase a su propio testigo se verificaria a si mismo (D13), y el testigo lo rechaza con DERIVA_AL_TESTIGO. Incidente declarado: entre el pre-vuelo y la escritura de T3 otra mano dejo en el README una version sin huella que afirmaba «tres filas comparten la rama ocurrencias»; medido, son dos (RANURA_OCURRENCIAS_TEXTO + RANURA_OCURRENCIAS_BOOL) sobre la rama `parche[%d].ocurrencias debe ser un entero`, y RANURA_OCURRENCIAS_CERO tiene rama propia (`>= 1`). La version escrita es la medida: 19 filas sobre 17 ramas, 18 mensajes distintos, dos pares de filas compartiendo rama.",
+  "claims": [
+    {
+      "id": "causas_banco",
+      "afirma": "9/9 por causa",
+      "dato": "sandbox.py",
+      "ruta": "banco.cobertura.causas",
+      "deriva": "parser:tests/test_ancla_banco.py::reporte_crudo",
+      "polaridad": "exacto",
+      "prosa": "README.md"
+    },
+    {
+      "id": "ramas_banco",
+      "afirma": "17/17 por rama",
+      "dato": "sandbox.py",
+      "ruta": "banco.cobertura.ramas",
+      "deriva": "parser:tests/test_ancla_banco.py::reporte_crudo",
+      "polaridad": "exacto",
+      "prosa": "README.md"
+    },
+    {
+      "id": "ranura_rama",
+      "afirma": "19/19 rama",
+      "dato": "sandbox.py",
+      "ruta": "banco.banco[fase_alcanzada=RANURA]",
+      "deriva": "parser:tests/test_ancla_banco.py::reporte_crudo",
+      "polaridad": "exacto",
+      "prosa": "README.md"
+    },
+    {
+      "id": "piloto_certificados",
+      "afirma": "PILOTO: 3/3 CERTIFICADO_RED_GREEN",
+      "dato": "sandbox.py",
+      "ruta": "piloto.piloto",
+      "deriva": "parser:tests/test_ancla_banco.py::reporte_crudo",
+      "polaridad": "exacto",
+      "prosa": "README.md"
+    },
+    {
+      "id": "causas_cubiertas",
+      "afirma": "9 de las 9 causas",
+      "dato": "sandbox.py",
+      "ruta": "banco.cobertura.cubiertas",
+      "deriva": "parser:tests/test_ancla_banco.py::reporte_crudo",
+      "polaridad": "exacto",
+      "prosa": "README.md"
+    },
+    {
+      "id": "ranura_filas",
+      "afirma": "19 filas",
+      "dato": "sandbox.py",
+      "ruta": "banco.banco[fase_alcanzada=RANURA]",
+      "deriva": "parser:tests/test_ancla_banco.py::reporte_crudo",
+      "polaridad": "exacto",
+      "prosa": "README.md"
+    },
+    {
+      "id": "mensajes_distintos",
+      "afirma": "18 mensajes distintos",
+      "dato": "sandbox.py",
+      "ruta": "banco.banco[fase_alcanzada=RANURA].detalle#distintos",
+      "deriva": "parser:tests/test_ancla_banco.py::reporte_crudo",
+      "polaridad": "exacto",
+      "prosa": "README.md"
+    },
+    {
+      "id": "sitios_aborta",
+      "afirma": "17 sitios Aborta",
+      "dato": "sandbox.py",
+      "ruta": "ramas.ramas",
+      "deriva": "parser:sandbox.py::_ramas_del_validador",
+      "polaridad": "exacto",
+      "prosa": "README.md"
+    },
+    {
+      "id": "piloto_sin_lineas",
+      "afirma": "0 líneas [PILOTO]",
+      "dato": "sandbox.py",
+      "ruta": "receta.lineas_piloto",
+      "deriva": "parser:tests/test_sandbox.py::correr",
+      "polaridad": "exacto",
+      "prosa": "README.md"
+    },
+    {
+      "id": "receta_una_linea",
+      "afirma": "1 línea [RECETA]",
+      "dato": "sandbox.py",
+      "ruta": "receta.lineas_receta",
+      "deriva": "parser:tests/test_sandbox.py::correr",
+      "polaridad": "exacto",
+      "prosa": "README.md"
+    }
+  ]
+}
