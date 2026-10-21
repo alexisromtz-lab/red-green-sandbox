@@ -90,6 +90,7 @@
       "prosa": "README.md"
     },
     {
+      "observable": "SPLITLINES",
       "id": "piloto_sin_lineas",
       "afirma": "0 líneas [PILOTO]",
       "dato": "sandbox.py",
@@ -100,6 +101,7 @@
       "portador_local": "tests/test_claims_witness.py"
     },
     {
+      "observable": "SPLITLINES",
       "id": "receta_una_linea",
       "afirma": "1 línea [RECETA]",
       "dato": "sandbox.py",
