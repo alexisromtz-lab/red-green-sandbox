@@ -18,6 +18,12 @@ classifiers = [
 ]
 dependencies = []
 
+# HUELLA-CENSO-PYTEST-PLANTILLA-DECLARACIONES-20261020
+# pytest es del APARATO (collector + junitxml), no del runtime: el runner lo
+# instalaba a ciegas. `pip install -e .` no instala extras: la ruta no cambia.
+[project.optional-dependencies]
+dev = ["pytest>=8,<10"]
+
 [project.scripts]
 redgreen-sandbox = "sandbox:main"
 
