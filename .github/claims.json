@@ -3,6 +3,9 @@
   "repo": "red-green-sandbox",
   "clase": "A",
   "acta": "HUELLA-RG-CLAIMS-MECANIZABLE-20261020",
+  "datos": {
+    "sandbox.py": "908b69da2c69b339"
+  },
   "nota": "Censo congelado en platino-labs/sim/PREREGISTRO_CLAIMS_RG_PC_20261020.md §9.2: 12 figuras distintas en el README, 10 mecanizables, 3 portadores preexistentes. deriva apunta a tests/test_ancla_banco.py::reporte_crudo, a sandbox.py::_ramas_del_validador y a tests/test_sandbox.py::correr, y NUNCA a tests/test_claims_witness.py: un claims.json cuyo deriva nombrase a su propio testigo se verificaria a si mismo (D13), y el testigo lo rechaza con DERIVA_AL_TESTIGO. Incidente declarado: entre el pre-vuelo y la escritura de T3 otra mano dejo en el README una version sin huella que afirmaba «tres filas comparten la rama ocurrencias»; medido, son dos (RANURA_OCURRENCIAS_TEXTO + RANURA_OCURRENCIAS_BOOL) sobre la rama `parche[%d].ocurrencias debe ser un entero`, y RANURA_OCURRENCIAS_CERO tiene rama propia (`>= 1`). La version escrita es la medida: 19 filas sobre 17 ramas, 18 mensajes distintos, dos pares de filas compartiendo rama.",
   "claims": [
     {
