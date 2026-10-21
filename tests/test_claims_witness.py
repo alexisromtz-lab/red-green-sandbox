@@ -48,6 +48,7 @@ formas y exige que cada una sea cazada por su causa exacta. Un testigo que solo
 aprueba el caso sano no discrimina.
 """
 
+import hashlib
 import importlib.util
 import inspect
 import json
@@ -216,6 +217,52 @@ def resolver(obj, ruta):
                     unicos.append(item)
             actual = unicos
     return len(actual) if isinstance(actual, list) else actual
+
+
+# --------------------------------------------------------------------------
+# HUELLA-GRAMATICA-DUAL-SHA256-20261020 · el sha256 cruzado de la gramatica
+# --------------------------------------------------------------------------
+# El sha256 del TEXTO no sirve como ancla: esta copia y `platino-labs/sim/
+# verify_claims.py` nombran distinto (`SEGMENTO`/`_SEGMENTO`, `resolver`/
+# `_resolver_ruta`) y el hash saldria siempre distinto — un sensor ciego que
+# grita sin que la ley cambie. Se hashea la CONDUCTA: la matriz de `resolver`
+# sobre los seis fixtures del pre-registro congelado
+# `platino-labs/sim/PREREGISTRO_GRAMATICA_DUAL_20261020.md`. Las dos copias
+# declaran el MISMO hex; la que derive cambia su propio hash y su pin la delata,
+# sin importar la gramatica del otro repo (la independencia del §18 se mantiene).
+CROSS_HASH_GRAMATICA = "c815c06c3e43bf49cc21f3a71c7c52a6e70ba7756f6ea38017d5581ec83d36db"
+
+_CRUDO_CROSS = {
+    "escalar": 5,
+    "obj": {"cierra": 3},
+    "lista": [1, 2, 2, 3],
+    "filas": [{"k": "x", "v": 1}, {"k": "y", "v": 2}, {"k": "x", "v": 1}],
+}
+_FIXTURES_CROSS = (
+    ("F1", "obj.cierra"),
+    ("F2", "filas[k=x].v"),
+    ("F3", "lista#distintos"),
+    ("F4", "obj.no_existe"),
+    ("F5", "escalar#distintos"),
+    ("F6", "filas.k"),
+)
+
+
+def _medir_cross(fn, ruta):
+    """La misma medida del arnes congelado: clase, tipo, valor y mensaje."""
+    try:
+        v = fn(json.loads(json.dumps(_CRUDO_CROSS)), ruta)
+        return ["OK", type(v).__name__, repr(v), ""]
+    except Exception as exc:  # noqa: BLE001
+        txt = str(exc)
+        return [txt.split(":")[0] if ":" in txt else "OTRO", "", "", txt]
+
+
+def huella_gramatica(fixtures=_FIXTURES_CROSS):
+    """sha256 de la conducta de `resolver`, no de su texto."""
+    matriz = [[fid, *_medir_cross(resolver, ruta)] for fid, ruta in fixtures]
+    canon = json.dumps(matriz, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+    return hashlib.sha256(canon.encode("utf-8")).hexdigest()
 
 
 def porta_valor(valor, afirma):
@@ -445,6 +492,23 @@ def test_el_testigo_de_claims_sabe_fallar():
             raise AssertionError("CLAIMS_ROTO_PARSEA")
     finally:
         roto.unlink(missing_ok=True)
+
+
+def test_la_gramatica_conserva_su_cross_hash():
+    """Pin conductual: si `resolver` deriva, su propio hash deja de ser el declarado."""
+    assert huella_gramatica() == CROSS_HASH_GRAMATICA, (
+        "GRAMATICA_DIVERGENTE: la conducta de `resolver` ya no es %s (es %s) — "
+        "re-alinear con platino-labs/sim/verify_claims.py o declarar la deriva"
+        % (CROSS_HASH_GRAMATICA, huella_gramatica())
+    )
+
+
+def test_el_cross_hash_sabe_morder():
+    """Falsador del pin: una gramatica perturbada NO puede dar el hash declarado."""
+    perturbada = huella_gramatica(fixtures=(("F5", "lista#distintos"),))
+    assert perturbada != CROSS_HASH_GRAMATICA, (
+        "PIN_CIEGO: una matriz distinta dio el hash declarado (%s)" % perturbada
+    )
 
 
 if __name__ == "__main__":
