@@ -8,6 +8,30 @@
 # HUELLA-CI-PY-V7-MODO-COMPUESTO-20261020
 # HUELLA-CI-PY-V8-SIN-DETECCION-20261020
 # HUELLA-CI-PY-V9-VETO-OPERADORES-20261020
+# HUELLA-CI-PY-V10-PYTEST-DECLARADO-20261020
+#
+# CORRECCIÓN 12 (v10, pytest declarado): el paso de instalación hacía
+# `python -m pip install pytest` ANTES de mirar el manifiesto, para TODOS los
+# aparatos. Medido el 2026-10-20 (censo de los 8 aparatos que invocan pytest,
+# PREREGISTRO_CENSO_PYTEST_PLANTILLA_20261020.md §9): 6 repos invocaban pytest
+# sin declararlo en ningún manifiesto y firmaban verde porque el runner se lo
+# regalaba; `plasma-ade` lo tenía solo dentro de un comentario; `protocol-core`
+# lo negaba en README y NOTICE. El runner no puede ser la dependencia de nadie:
+# si el repo no la declara, no se instala y el job cae con
+# DEPENDENCIA_NO_DECLARADA. Declarar cuesta una línea; que el runner tape la
+# falta es lo que vuelve invisible el hueco.
+#   · Alcance medido: 8 aparatos, 7 invocan pytest y los 7 declaran tras B1
+#     (HUELLA-CENSO-PYTEST-PLANTILLA-DECLARACIONES-20261020); 1 (platino-corpus,
+#     `mide: manifiesto`) no invoca y no se le instala nada. 0 rojos esperados.
+#   · `pip install -e .` NO instala extras: quien declare pytest en
+#     `[project.optional-dependencies]` no lo tiene importable tras `-e .`. Ese
+#     caso se mide (`import pytest`) y se instala DESPUÉS de verificar la
+#     declaración, con la spec declarada en el manifiesto, no con una versión
+#     ciega elegida por el runner.
+#   · LÍMITE DECLARADO: la detección de la declaración es textual (una línea
+#     activa `pytest…` en requirements.txt, o una spec `"pytest…"` entre
+#     comillas en pyproject.toml). Un manifiesto que la construya por
+#     sustitución no se distingue.
 #
 # CORRECCIÓN 11 (v9, veto de operadores): el validador miraba el PRIMER TOKEN y
 # no los OPERADORES. `comando: python -m ruff check . || true` pasaba la whitelist
@@ -377,17 +401,39 @@ jobs:
           set -euo pipefail
           echo "VACUIDAD_DELEGADA: aparato declarado (ORIGEN=$ORIGEN); la evidencia la exigen 'Validar la declaración' y 'Correr el aparato' según mide=$MIDE."
 
-      - name: Instalar dependencias (falla cerrado)
+      - name: Instalar dependencias (v10 — el runner no instala lo que el repo no declara)
         run: |
           set -euo pipefail
           python -m pip install --upgrade pip > /dev/null
-          python -m pip install pytest
+          declara=0
+          spec=""
           if [ -f requirements.txt ]; then
+            if grep -qiE '^[[:space:]]*pytest([<>=!~;[:space:]]|$)' requirements.txt; then declara=1; fi
             python -m pip install -r requirements.txt
           elif [ -f pyproject.toml ]; then
+            spec=$(grep -vE '^[[:space:]]*#' pyproject.toml | grep -oiE '"(pytest[<>=!~][^"]*|pytest)"' | head -1 | tr -d '"' || true)
+            if [ -n "$spec" ]; then declara=1; fi
             python -m pip install -e .
           else
-            echo "SIN_MANIFIESTO: no requirements.txt ni pyproject.toml — pytest pelado."
+            echo "SIN_MANIFIESTO: no requirements.txt ni pyproject.toml."
+          fi
+          if printf '%s' "$APPARATUS" | grep -qE '(^|[^[:alnum:]_-])pytest([^[:alnum:]_-]|$)'; then
+            if [ "$declara" -ne 1 ]; then
+              echo "DEPENDENCIA_NO_DECLARADA: el aparato invoca pytest y ningun manifiesto lo declara (requirements.txt activo o pyproject.toml) — el runner ya no instala pytest a ciegas; failing closed."
+              exit 1
+            fi
+            if ! python -c 'import pytest' > /dev/null 2>&1; then
+              if [ -n "$spec" ]; then
+                python -m pip install "$spec"
+                echo "PYTEST_DESDE_EXTRAS: instalado '$spec' (declarado en pyproject.toml; 'pip install -e .' no instala extras)."
+              else
+                echo "PYTEST_NO_IMPORTABLE: declarado en requirements.txt pero no importable tras -r — failing closed."
+                exit 1
+              fi
+            fi
+            echo "DEPENDENCIA_OK: invoca pytest · declara=1"
+          else
+            echo "DEPENDENCIA_OK: el aparato no invoca pytest; solo se instala el manifiesto."
           fi
 
       - name: Correr el aparato (v7 — rc, evidencia por modo e instrumento junitxml)
