@@ -203,7 +203,11 @@ def resolver(obj, ruta):
             actual = [i for i in actual if isinstance(i, dict) and i.get(campo) == esperado]
         if m.group("op") == "distintos":
             if not isinstance(actual, list):
-                raise ValueError("RUTA_INVALIDA: #distintos sobre algo que no es lista")
+                # HUELLA-GRAMATICA-DUAL-ALINEA-MENSAJE-20261020: la copia informativa
+                # gana — el mensaje nombra la ruta que falló, igual que el global.
+                raise ValueError(
+                    "RUTA_INVALIDA: %r #distintos sobre algo que no es lista" % ruta
+                )
             vistos, unicos = set(), []
             for item in actual:
                 k = json.dumps(item, sort_keys=True, ensure_ascii=False)
