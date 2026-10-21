@@ -54,8 +54,13 @@ del validador de `--receta`:
 | `REGRESION_ROTA_ANTES` | SETUP | `ABORTA_REGRESION_ROTA` |
 | `REGRESION_ROTA_DESPUES` | GREEN | `ABORTA_REGRESION_ROTA` |
 
-Las 17 filas `RANURA_*` ejercen el validador de `--receta` por subproceso: una fila por
-rama de `_cargar_receta`, cada una exigiendo `causa` + prefijo de `detalle` + `RC=2`.
+<!-- HUELLA-README-RANURA-19-20261020 -->
+Las **19** filas `RANURA_*` ejercen el validador de `--receta` por subproceso: cubren las
+**17** ramas (`Aborta`) de `_cargar_receta` con **18** mensajes distintos en 19 filas.
+Dos pares de filas comparten rama — `%s debe ser una cadena no vacia`
+(`RANURA_NOMBRE_VACIO` + `RANURA_FAMILIA_NO_TEXTO`) y `parche[%d].ocurrencias debe ser un
+entero` (`RANURA_OCURRENCIAS_TEXTO` + `RANURA_OCURRENCIAS_BOOL`) —; `ocurrencias < 1` es
+una rama aparte. Cada fila exige `causa` + prefijo de `detalle` + `RC=2`.
 
 ## Receta externa — `--receta PATH.json`
 
