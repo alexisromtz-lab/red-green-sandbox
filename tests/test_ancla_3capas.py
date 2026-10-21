@@ -182,6 +182,23 @@ def test_baseline_de_bytes_no_es_ninguna_capa():
     assert base["bytes"] not in base["capas"].values()
 
 
+# Valores vigentes del ancla. Si la conducta cambia de verdad, este test grita;
+# el valor se supera en su sitio con la huella del acto que lo movio, nunca se
+# reescribe a ciegas.
+# HUELLA-ANCLA-VIGENTE-PIN-20261020
+ANCLA_VIGENTE = {
+    "ley": "d5681eaf0c554482",
+    "fontaneria": "a2b6842622931d1c",
+    "superficie": "099339b8301c594e",
+}
+
+
+def test_ancla_vigente_coincide():
+    assert _base()["capas"] == ANCLA_VIGENTE, (
+        "el ancla se movio respecto de los valores vigentes: %s" % _base()["capas"]
+    )
+
+
 if __name__ == "__main__":
     c = _base()["capas"]
     print("LEY=%s" % c["ley"])
