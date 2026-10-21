@@ -84,7 +84,8 @@
       "ruta": "receta.lineas_piloto",
       "deriva": "parser:tests/test_sandbox.py::correr",
       "polaridad": "exacto",
-      "prosa": "README.md"
+      "prosa": "README.md",
+      "portador_local": "tests/test_claims_witness.py"
     },
     {
       "id": "receta_una_linea",
@@ -93,7 +94,10 @@
       "ruta": "receta.lineas_receta",
       "deriva": "parser:tests/test_sandbox.py::correr",
       "polaridad": "exacto",
-      "prosa": "README.md"
+      "prosa": "README.md",
+      "portador_local": "tests/test_claims_witness.py"
     }
-  ]
+  ],
+  "huella_especifico": "HUELLA-RG-CLAIMS-ESPECIFICO-20261020",
+  "frontera": "Dos claims (piloto_sin_lineas, receta_una_linea) declaran `portador_local`: su crudo se COMPONE en runtime (receta_piloto() + receta_json() + correr([\"--receta\", tmp])) y ningun verificador estatico puede rehacer esa composicion sin adivinarla. El verificador global de platino-labs NO los re-deriva: imprime SKIP: PARSER_ESPECIFICO y escala el repo a ESPERANDO_TESTIGO_LOCAL. Los mide este repo, en tests/test_claims_witness.py, que si conoce la composicion. Un salto sin testigo local es un verde oculto: por eso el portador_local nombra un archivo que existe y esta rastreado."
 }
