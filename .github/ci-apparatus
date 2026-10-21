@@ -2,5 +2,7 @@
 # Contrato v5: comando: + mide: (+ evidencia: si mide es manifiesto o banco).
 # La plantilla de este repo ya no firma verde con un comando que no mide.
 comando: python .github/verify_manifest.py && python -m pytest -q tests/ --junitxml=/tmp/junit.xml
-mide: tests
-evidencia: junitxml
+mide: manifiesto+tests
+evidencia: MANIFIESTO_SANO: [0-9]+; junitxml
+# HUELLA-APPARATUS-MODO-COMPUESTO-20261020 · la cadena mide DOS cosas y el
+# certificado cubre las dos: MANIFIESTO_SANO (entero > 0) y junitxml (<testcase>).
