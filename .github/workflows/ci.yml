@@ -206,12 +206,8 @@
 # CORRECCIÓN 7 (v5): `mide: binario` queda RESERVADO sin implementar. Un tipo que
 # el workflow no sabe verificar es una exención; y una exención con rc 0 es el
 # falso verde que esta ley existe para matar. Se declara MIDE_NO_IMPLEMENTADO.
-#   · Reparto medido (2026-10-20): 7 repos `python .github/verify_manifest.py`
-#     (manifiesto) · 2 repos manifiesto+pytest · 5 repos pytest (tests) ·
-#     3 repos banco must-fail (banco) · 3 repos sin declaración (detección pytest).
-#   · Reparto medido para v6 (2026-10-20T23:4x Z, por declaración): 7 repos
-#     `mide: tests` (migran a junitxml) · 7 `manifiesto` · 3 `banco` · 3 sin
-#     declaración (detección, el workflow les pone el flag) · 2 Node (otra ley).
+# Contrato CI v4: aparato declarado en .github/ci-apparatus (mide: tests)
+# Falla cerrado si no hay aparato o si la suite emite RC != 0.
 #
 # FALSIFICADOR (medido, no supuesto) en alexisromtz-lab/ci-fail-closed-falsifier,
 # PÚBLICO desde 2026-10-20T22:16:30Z: la cita es auditable sin token (API anónima
