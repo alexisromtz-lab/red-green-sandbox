@@ -1,8 +1,9 @@
-# HUELLA-CI-PYTHON-V5-PROHIBICION-EVAL-20261020
-# Contrato v5: comando: + mide: (+ evidencia: si mide es manifiesto o banco).
-# La plantilla de este repo ya no firma verde con un comando que no mide.
-comando: python .github/verify_manifest.py && python -m pytest -q tests/ --junitxml=/tmp/junit.xml
-mide: manifiesto+tests
-evidencia: MANIFIESTO_SANO: [0-9]+; junitxml
-# HUELLA-APPARATUS-MODO-COMPUESTO-20261020 · la cadena mide DOS cosas y el
-# certificado cubre las dos: MANIFIESTO_SANO (entero > 0) y junitxml (<testcase>).
+# HUELLA-CI-APPARATUS-REDGREEN-TESTS-20261022
+# Contrato v10: el aparato mide UNA cosa. La cadena compuesta ponia
+# `.github/verify_manifest.py` delante de la bateria; ese manifiesto solo mira
+# que los ficheros existan, parseen y compilen, y no distingue un sandbox roto
+# de uno sano. Lo que mide —RED -> GREEN sin mutar el examen, banco de conducta,
+# ancla de tres capas— lo firma el banco pytest. El manifiesto se retira.
+comando: python -m pytest -q tests --junitxml=/tmp/junit.xml
+mide: tests
+evidencia: junitxml

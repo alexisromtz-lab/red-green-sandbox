@@ -271,15 +271,16 @@ copia del fuente —`if n != s["ocurrencias"]` ⇒ `if False` y `if pre["rc"] ==
 `if False`— y la suite pasó de `7 passed` a **`4 failed, 3 passed`**. Una suite que
 sigue verde con el instrumento roto no es un test, es un adorno.
 
-CI: el aparato declarado en `.github/ci-apparatus` es compuesto, en una línea (el
-runner lee **sólo la primera**):
+CI: el aparato declarado en `.github/ci-apparatus` mide una sola cosa — la conducta:
 
 ```
-python .github/verify_manifest.py && python -m pytest -q tests/
+python -m pytest -q tests --junitxml=/tmp/junit.xml
 ```
 
-Manifiesto primero (¿parsea?), conducta después (¿se comporta?). Medido local:
-`MANIFIESTO_SANO` + `7 passed` ⇒ `RC 0`.
+Conducta (¿se comporta?). El manifiesto pasivo (`verify_manifest.py`, que sólo
+comprobaba que los ficheros existían, parseaban y compilaban) se retiró el
+`2026-10-22`: delante de la batería no distinguía un sandbox roto de uno sano.
+Medido local: `27 passed` ⇒ `RC 0`.
 
 ## Cómo citar
 
