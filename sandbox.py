@@ -26,7 +26,7 @@ Invariantes (todas MEDIDAS, ninguna leida):
 
 Alcance de escritura: SOLO el sandbox temporal (`/tmp/sandbox_corpus_*`).
 Este modulo no importa `agent.py` ni `router_soluciones_v2.py` y no escribe
-`INDICE_SOLUCIONES.json`: mide objetos ajenos sin tocarlos.
+`catalogo.json`: mide objetos ajenos sin tocarlos.
 
 Ranura externa (HUELLA-SANDBOX-RECETA-EXTERNA-MRUN25-20261020): `--receta
 PATH.json` ejecuta una receta de FUERA del repositorio, validada contra el mismo
