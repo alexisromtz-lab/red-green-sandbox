@@ -5,8 +5,8 @@
 HUELLA-RG-CLAIMS-WITNESS-20261020
 
 Acto `HUELLA-RG-SANDBOX-CLAIMS-WITNESS-README-20261020` (T3 README + T2 testigo +
-T1 claims). El censo congelado en
-`platino-labs/sim/PREREGISTRO_CLAIMS_RG_PC_20261020.md` §9.2 midio 12 figuras
+T1 claims). El censo congelado en el preregistro de claims del corpus de
+custodia, §9.2, midio 12 figuras
 distintas en el README; 10 resultaron mecanizables y aqui se verifican una a una.
 
 Que exige este testigo por claim (los mismos cuatro eslabones que plasma-ade):
@@ -222,12 +222,12 @@ def resolver(obj, ruta):
 # --------------------------------------------------------------------------
 # HUELLA-GRAMATICA-DUAL-SHA256-20261020 · el sha256 cruzado de la gramatica
 # --------------------------------------------------------------------------
-# El sha256 del TEXTO no sirve como ancla: esta copia y `platino-labs/sim/
-# verify_claims.py` nombran distinto (`SEGMENTO`/`_SEGMENTO`, `resolver`/
+# El sha256 del TEXTO no sirve como ancla: esta copia y la del verificador del
+# corpus de custodia nombran distinto (`SEGMENTO`/`_SEGMENTO`, `resolver`/
 # `_resolver_ruta`) y el hash saldria siempre distinto — un sensor ciego que
 # grita sin que la ley cambie. Se hashea la CONDUCTA: la matriz de `resolver`
-# sobre los seis fixtures del pre-registro congelado
-# `platino-labs/sim/PREREGISTRO_GRAMATICA_DUAL_20261020.md`. Las dos copias
+# sobre los seis fixtures del pre-registro de la gramatica dual del corpus de
+# custodia. Las dos copias
 # declaran el MISMO hex; la que derive cambia su propio hash y su pin la delata,
 # sin importar la gramatica del otro repo (la independencia del §18 se mantiene).
 CROSS_HASH_GRAMATICA = "c815c06c3e43bf49cc21f3a71c7c52a6e70ba7756f6ea38017d5581ec83d36db"
@@ -498,7 +498,7 @@ def test_la_gramatica_conserva_su_cross_hash():
     """Pin conductual: si `resolver` deriva, su propio hash deja de ser el declarado."""
     assert huella_gramatica() == CROSS_HASH_GRAMATICA, (
         "GRAMATICA_DIVERGENTE: la conducta de `resolver` ya no es %s (es %s) — "
-        "re-alinear con platino-labs/sim/verify_claims.py o declarar la deriva"
+        "re-alinear con el verificador del corpus de custodia o declarar la deriva"
         % (CROSS_HASH_GRAMATICA, huella_gramatica())
     )
 
