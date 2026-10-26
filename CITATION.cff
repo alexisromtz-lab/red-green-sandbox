@@ -13,6 +13,7 @@ abstract: >-
 authors:
   - family-names: "Roman Martinez"
     given-names: "Jose Alexis"
+    orcid: "https://orcid.org/0009-0001-9116-075X"
   - name: "Platino Labs"
 version: 1.3.0
 date-released: 2026-10-20
