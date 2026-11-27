@@ -55,12 +55,37 @@ def _version_zenodo(raiz):
         return json.load(f).get("version")
 
 
+def _git(raiz, *args):
+    return subprocess.run(["git", *args], cwd=raiz, capture_output=True, text=True)
+
+
 def _tag_existe(raiz, version):
-    p = subprocess.run(["git", "tag", "--list", "v" + version],
-                       cwd=raiz, capture_output=True, text=True)
-    if p.returncode != 0:
-        return None  # NO_MEDIDO: sin git no hay veredicto, y no se lee como verde
-    return p.stdout.strip() == "v" + version
+    """Pregunta al REPOSITORIO, no al checkout.
+
+    `actions/checkout` clona con `fetch-depth: 1` y sin tags: ahi `git tag --list`
+    sale vacio aunque el tag exista en el repositorio, y un lector que se fie del
+    espacio local enrojece por el universo del observador, no por el sujeto
+    (medido 2026-11-27: local verde con v1.3.0, CI rojo con el mismo arbol).
+
+    Regla: si el espacio local de tags esta VACIO, esta truncado y se pregunta al
+    remoto; si tiene tags, el tag que falta falta de verdad. Un git que no
+    contesta es NO_MEDIDO — None — y nunca se lee como verde.
+    """
+    ref = "refs/tags/v" + version
+    p = _git(raiz, "show-ref", "--verify", "--quiet", ref)
+    if p.returncode == 0:
+        return True
+    if p.returncode != 1:
+        return None
+    local = _git(raiz, "tag", "--list")
+    if local.returncode != 0:
+        return None
+    if local.stdout.strip():
+        return False
+    remoto = _git(raiz, "ls-remote", "--tags", "origin", ref)
+    if remoto.returncode != 0:
+        return None
+    return bool(remoto.stdout.strip())
 
 
 def divergencias(raiz=None):
